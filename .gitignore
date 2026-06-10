@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.agents
+.gemini/
+ui-component/
+node_modules
