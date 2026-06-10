@@ -1,2 +1,2 @@
-# dependecies list
-pydantic-settings==2.10.1
+# dependencies list
+# No external dependencies — uses only Python standard library
