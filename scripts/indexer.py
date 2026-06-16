@@ -5,14 +5,16 @@ import sys
 import time
 
 from config import BATCH_SIZE
-from database import DatabaseManager
+from database import DatabaseBuilder, FeatureRepository, DatabaseVerifier
 from parser import GFFParser
+from utils import get_logger, get_db_size_mb
+
+logger = get_logger("indexer")
 
 
 def build_database(
     gff_paths: str | list[str],
     db_path: str,
-    page_size: int = 4096,
     use_prefix: bool = False,
     vacuum: bool = True,
     limit: int | None = None,
@@ -21,9 +23,14 @@ def build_database(
     if isinstance(gff_paths, str):
         gff_paths = [gff_paths]
 
-    print(f"[indexer] Creating compact FTS-only database: {db_path}")
+    logger.info(f"Creating compact FTS-only database: {db_path}")
 
-    db_manager = DatabaseManager(db_path, page_size, use_prefix)
+    builder = DatabaseBuilder(db_path, use_prefix)
+    conn = builder.prepare()
+    repo = FeatureRepository(conn)
+    verifier = DatabaseVerifier(conn)
+
+    conn.execute("BEGIN;")
 
     parsed_features = 0
     indexed_rows = 0
@@ -34,7 +41,7 @@ def build_database(
 
     try:
         for gff_path in gff_paths:
-            print(f"[indexer] Reading: {gff_path}")
+            logger.info(f"Reading: {gff_path}")
 
             if not os.path.exists(gff_path):
                 raise FileNotFoundError(f"Input file not found: {gff_path}")
@@ -58,35 +65,38 @@ def build_database(
                     indexed_rows += 1
 
                     if len(meta_batch) >= BATCH_SIZE:
-                        db_manager.insert_batch(meta_batch, fts_batch)
+                        repo.insert_batch(meta_batch, fts_batch)
                         meta_batch.clear()
                         fts_batch.clear()
 
                         if indexed_rows % 100_000 == 0:
-                            print(f"[indexer] Indexed {indexed_rows:,} compact rows...")
+                            logger.info(f"Indexed {indexed_rows:,} compact rows...")
 
             if limit is not None and parsed_features >= limit:
                 break
 
-        db_manager.insert_batch(meta_batch, fts_batch)
-        db_manager.commit_and_optimize(vacuum=vacuum)
-        db_manager.verify_database(expected_rows=indexed_rows)
+        repo.insert_batch(meta_batch, fts_batch)
+
+        # Verify integrity before committing and optimizing
+        verifier.verify(expected_rows=indexed_rows)
+
+        repo.optimize(vacuum=vacuum)
 
     except Exception:
-        db_manager.rollback()
-        db_manager.close()
+        conn.rollback()
+        conn.close()
         raise
 
-    db_manager.close()
+    conn.close()
 
-    size_mb = os.path.getsize(db_path) / (1024 * 1024)
+    size_mb = get_db_size_mb(db_path)
 
-    print("[indexer] Done.")
-    print(f"[indexer] Indexed searchable rows: {indexed_rows:,}")
-    print(f"[indexer] Skipped low-value/invalid rows: {skipped_rows:,}")
-    print(f"[indexer] Output: {db_path}")
-    print(f"[indexer] DB size: {size_mb:.2f} MB")
-    print(f"[indexer] Time elapsed: {time.time() - start_time:.2f} seconds")
+    logger.info("Done.")
+    logger.info(f"Indexed searchable rows: {indexed_rows:,}")
+    logger.info(f"Skipped low-value/invalid rows: {skipped_rows:,}")
+    logger.info(f"Output: {db_path}")
+    logger.info(f"DB size: {size_mb:.2f} MB")
+    logger.info(f"Time elapsed: {time.time() - start_time:.2f} seconds")
 
 
 def main() -> None:
@@ -110,13 +120,6 @@ def main() -> None:
             "genomics.db.zip",
         ),
         help="Output DB path. Default: ../database/genomics.db.zip",
-    )
-
-    parser.add_argument(
-        "--page-size",
-        type=int,
-        default=4096,
-        help="SQLite page size. Default: 4096.",
     )
 
     parser.add_argument(
@@ -144,13 +147,12 @@ def main() -> None:
         build_database(
             gff_paths=args.gff,
             db_path=args.output,
-            page_size=args.page_size,
             use_prefix=args.prefix,
             vacuum=not args.no_vacuum,
             limit=args.limit,
         )
     except Exception as exc:
-        print(f"[indexer] ERROR: {exc}", file=sys.stderr)
+        logger.error(f"ERROR: {exc}")
         sys.exit(1)
 
 

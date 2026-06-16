@@ -1,5 +1,18 @@
 import sqlite3
 import os
+from config import (
+    PAGE_SIZE,
+    PRAGMA_JOURNAL_MODE,
+    PRAGMA_SYNCHRONOUS,
+    PRAGMA_TEMP_STORE,
+    PRAGMA_LOCKING_MODE,
+    PRAGMA_SECURE_DELETE,
+    PRAGMA_CACHE_SIZE,
+    VALID_STRANDS,
+)
+from utils import get_logger
+
+logger = get_logger("indexer")
 
 
 def make_schema(use_prefix: bool = False) -> str:
@@ -48,16 +61,12 @@ VALUES (?, ?, ?, ?, ?, ?);
 """
 
 
-class DatabaseManager:
-    def __init__(self, db_path: str, page_size: int = 4096, use_prefix: bool = False):
+class DatabaseBuilder:
+    def __init__(self, db_path: str, use_prefix: bool = False):
         self.db_path = db_path
-        self.page_size = page_size
         self.use_prefix = use_prefix
-        self.conn = self._prepare_database()
-        self.cur = self.conn.cursor()
-        self.cur.execute("BEGIN;")
 
-    def _prepare_database(self) -> sqlite3.Connection:
+    def prepare(self) -> sqlite3.Connection:
         os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
 
         if os.path.exists(self.db_path):
@@ -66,19 +75,25 @@ class DatabaseManager:
         conn = sqlite3.connect(self.db_path)
         cur = conn.cursor()
 
-        # Fast bulk-build settings
-        cur.execute("PRAGMA journal_mode = OFF;")
-        cur.execute("PRAGMA synchronous = OFF;")
-        cur.execute("PRAGMA temp_store = MEMORY;")
-        cur.execute("PRAGMA locking_mode = EXCLUSIVE;")
-        cur.execute("PRAGMA secure_delete = OFF;")
-        cur.execute(f"PRAGMA page_size = {int(self.page_size)};")
-        cur.execute("PRAGMA cache_size = -300000;")
+        # Fast bulk-build settings using constants from config
+        cur.execute(f"PRAGMA journal_mode = {PRAGMA_JOURNAL_MODE};")
+        cur.execute(f"PRAGMA synchronous = {PRAGMA_SYNCHRONOUS};")
+        cur.execute(f"PRAGMA temp_store = {PRAGMA_TEMP_STORE};")
+        cur.execute(f"PRAGMA locking_mode = {PRAGMA_LOCKING_MODE};")
+        cur.execute(f"PRAGMA secure_delete = {PRAGMA_SECURE_DELETE};")
+        cur.execute(f"PRAGMA page_size = {PAGE_SIZE};")
+        cur.execute(f"PRAGMA cache_size = {PRAGMA_CACHE_SIZE};")
 
         cur.executescript(make_schema(self.use_prefix))
         conn.commit()
 
         return conn
+
+
+class FeatureRepository:
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+        self.cur = self.conn.cursor()
 
     def insert_batch(self, meta_batch: list[tuple], fts_batch: list[tuple]) -> None:
         if meta_batch:
@@ -86,41 +101,45 @@ class DatabaseManager:
         if fts_batch:
             self.cur.executemany(INSERT_FTS, fts_batch)
 
-    def commit_and_optimize(self, vacuum: bool = True) -> None:
+    def optimize(self, vacuum: bool = True) -> None:
         self.conn.commit()
 
-        print("[indexer] Optimizing FTS...")
+        logger.info("Optimizing FTS...")
         self.cur.execute("INSERT INTO search_fts(search_fts) VALUES ('optimize');")
         self.conn.commit()
 
-        print("[indexer] Running ANALYZE...")
+        logger.info("Running ANALYZE...")
         self.cur.execute("ANALYZE;")
         self.conn.commit()
 
         if vacuum:
-            print("[indexer] Vacuuming database...")
+            logger.info("Vacuuming database...")
             self.cur.execute("VACUUM;")
             self.conn.commit()
 
-    def verify_database(self, expected_rows: int) -> None:
+
+class DatabaseVerifier:
+    def __init__(self, conn: sqlite3.Connection):
+        self.conn = conn
+        self.cur = self.conn.cursor()
+
+    def verify(self, expected_rows: int) -> None:
         """Post-build verification: query actual DB to assert data integrity."""
-        print("[indexer] Verifying database integrity...")
+        logger.info("Verifying database integrity...")
         errors = []
 
         # 1. Row count matches what the indexer tracked
         meta_count = self.cur.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
         if meta_count != expected_rows:
             errors.append(
-                f"Row count mismatch: feature_meta has {meta_count}, "
-                f"expected {expected_rows}"
+                f"Row count mismatch: feature_meta has {meta_count}, expected {expected_rows}"
             )
 
         # 2. feature_meta and search_fts have the same row counts
         fts_count = self.cur.execute("SELECT count(*) FROM search_fts").fetchone()[0]
         if meta_count != fts_count:
             errors.append(
-                f"Table count mismatch: feature_meta={meta_count}, "
-                f"search_fts={fts_count}"
+                f"Table count mismatch: feature_meta={meta_count}, search_fts={fts_count}"
             )
 
         # 3. Max rowid is synced between tables
@@ -128,14 +147,12 @@ class DatabaseManager:
         fts_max = self.cur.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
         if meta_max != fts_max:
             errors.append(
-                f"Rowid desync: feature_meta max={meta_max}, "
-                f"search_fts max={fts_max}"
+                f"Rowid desync: feature_meta max={meta_max}, search_fts max={fts_max}"
             )
 
         # 4. No missing feature IDs
         null_ids = self.cur.execute(
-            "SELECT count(*) FROM feature_meta "
-            "WHERE feature_id IS NULL OR feature_id = ''"
+            "SELECT count(*) FROM feature_meta WHERE feature_id IS NULL OR feature_id = ''"
         ).fetchone()[0]
         if null_ids > 0:
             errors.append(f"Found {null_ids} rows with NULL/empty feature_id")
@@ -148,8 +165,10 @@ class DatabaseManager:
             errors.append(f"Found {bad_coords} rows with invalid coordinates")
 
         # 6. No invalid strand values
+        placeholders = ",".join("?" for _ in VALID_STRANDS)
         bad_strands = self.cur.execute(
-            "SELECT count(*) FROM feature_meta " "WHERE strand NOT IN ('+', '-', '.')"
+            f"SELECT count(*) FROM feature_meta WHERE strand NOT IN ({placeholders})",
+            VALID_STRANDS,
         ).fetchone()[0]
         if bad_strands > 0:
             errors.append(f"Found {bad_strands} rows with invalid strand values")
@@ -168,10 +187,4 @@ class DatabaseManager:
             )
             raise RuntimeError(error_msg)
 
-        print(f"[indexer] Verification passed: 7 checks OK ({meta_count:,} rows)")
-
-    def rollback(self) -> None:
-        self.conn.rollback()
-
-    def close(self) -> None:
-        self.conn.close()
+        logger.info(f"Verification passed: 7 checks OK ({meta_count:,} rows)")

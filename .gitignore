@@ -222,3 +222,4 @@ __marimo__/
 .gemini/
 ui-component/
 node_modules
+/sample_data/

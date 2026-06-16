@@ -113,10 +113,9 @@ class GFFParser:
     def build_functional_summary(
         cls,
         attrs: dict[str, list[str]],
-        max_chars: int = 300,
     ) -> str | None:
-        # Build a compact display string for feature_meta.functional_summary.
-        # Takes at most 3 values per tag to keep it short for UI display.
+        # Build a display string for feature_meta.functional_summary.
+        # Takes at most 3 values per tag to keep it concise but does not truncate globally.
         parts = []
         for tag in FUNCTIONAL_TAGS:
             values = attrs.get(tag)
@@ -127,8 +126,6 @@ class GFFParser:
                 parts.append(f"{tag}: {joined}")
 
         result = " | ".join(parts) if parts else None
-        if result and len(result) > max_chars:
-            result = result[:max_chars].rstrip() + "..."
         return result
 
     @classmethod

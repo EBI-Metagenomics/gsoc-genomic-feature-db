@@ -44,3 +44,13 @@ DESCRIPTION_KEYS = ["description", "product", "note"]
 NAME_KEYS = ["name", "gene", "gene_name", "locus_tag", "standard_name"]
 ID_KEYS = ["id", "locus_tag", "protein_id", "transcript_id", "gene", "name"]
 BIOTYPE_KEYS = ["gene_biotype", "biotype", "transcript_biotype", "gbkey"]
+
+PAGE_SIZE = 4096
+PRAGMA_JOURNAL_MODE = "'OFF'"
+PRAGMA_SYNCHRONOUS = "'OFF'"
+PRAGMA_TEMP_STORE = "'MEMORY'"
+PRAGMA_LOCKING_MODE = "'EXCLUSIVE'"
+PRAGMA_SECURE_DELETE = "'OFF'"
+PRAGMA_CACHE_SIZE = -300000
+
+VALID_STRANDS = ("+", "-", ".", "?")
