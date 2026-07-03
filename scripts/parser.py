@@ -103,7 +103,10 @@ class GFFParser:
                 filtered.append(value)
 
             if filtered:
-                joined = cls.compact_join(filtered)
+                # Keep up to 50 values (2000 chars) per tag so every annotation is
+                # searchable in FTS, not just the first handful — scientists may query
+                # any accession the source carried.
+                joined = cls.compact_join(filtered, max_items=50, max_chars=2000)
                 if joined:
                     parts.append(f"{tag}: {joined}")
 
@@ -115,13 +118,16 @@ class GFFParser:
         attrs: dict[str, list[str]],
     ) -> str | None:
         # Build a display string for feature_meta.functional_summary.
-        # Takes at most 3 values per tag to keep it concise but does not truncate globally.
+        # Keeps up to 50 values (2000 chars) per tag so the UI can surface every
+        # annotation; the cap only guards against a pathological runaway cell and is
+        # generous enough to be effectively "all" for real features. There is no
+        # global cap across tags, so every populated tag still contributes a segment.
         parts = []
         for tag in FUNCTIONAL_TAGS:
             values = attrs.get(tag)
             if not values:
                 continue
-            joined = cls.compact_join(values, max_items=3, max_chars=80)
+            joined = cls.compact_join(values, max_items=50, max_chars=2000)
             if joined:
                 parts.append(f"{tag}: {joined}")
 
