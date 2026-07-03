@@ -1,0 +1,182 @@
+@keyframes spin {
+  to {
+    transform: translateY(-50%) rotate(360deg);
+  }
+}
+
+.cvf-search-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ccc;
+  border-top-color: #007c82;
+  /* VF primary color */
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Fixed-width strip of annotation letter badges inside a results cell. nowrap +
+   the constant badge size keep the Annotations column from growing horizontally. */
+.cvf-annotation-badges {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* Muted dash shown when a feature carries no annotations. */
+.cvf-annotation-empty {
+  color: #9ca3af;
+}
+
+/* A single source badge: a small square showing one letter (P, I, K, …). Inline
+   styles supply the per-source colour/border/background. Used both as a clickable
+   <button> in cells and (with --static) as a non-interactive legend swatch. */
+.cvf-annotation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+  background-color: #f3f4f6;
+  color: #4b5563;
+  font-family: monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter 0.1s ease;
+}
+
+.cvf-annotation-badge:hover {
+  filter: brightness(0.95);
+}
+
+.cvf-annotation-badge:focus-visible {
+  outline: 2px solid #007c82;
+  outline-offset: 1px;
+}
+
+/* Legend swatch: same box, but presentational only. */
+.cvf-annotation-badge--static {
+  cursor: default;
+}
+
+.cvf-annotation-badge--static:hover {
+  filter: none;
+}
+
+/* Popover listing every value for one source. Portal-rendered to <body> with
+   position:fixed so the results wrapper's overflow:auto cannot clip it. */
+.cvf-annotation-popover {
+  position: fixed;
+  z-index: 1000;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  border: 1px solid #d0d0ce;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  font-size: 0.8rem;
+  color: #1f2937;
+}
+
+.cvf-annotation-popover-title {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.cvf-annotation-group+.cvf-annotation-group {
+  margin-top: 0.4rem;
+}
+
+.cvf-annotation-group-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #6b7280;
+}
+
+.cvf-annotation-list {
+  list-style: none;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  font-family: monospace;
+}
+
+.cvf-annotation-list li {
+  padding: 0.1rem 0;
+  word-break: break-word;
+}
+
+/* One-line legend above the results table. */
+.cvf-annotation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.cvf-annotation-legend-title {
+  font-weight: 600;
+}
+
+.cvf-annotation-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cvf-results-wrapper {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid #d0d0ce;
+  border-radius: 4px;
+}
+
+/* Keep the column headings visible while the results body scrolls. The wrapper is
+   the scroll container (max-height + overflow:auto), so sticky positions the
+   heading row against its top edge. A solid background stops body rows showing
+   through, and the inset shadow stands in for the heading's lost bottom border. */
+.cvf-results-wrapper thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: #f4f4f4;
+  box-shadow: inset 0 -1px 0 #d0d0ce;
+}
+
+.cvf-search-meta {
+  font-size: 0.875rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.cvf-feature-name {
+  font-family: monospace;
+  font-weight: 600;
+  color: #111;
+}
+
+/* Gene symbol shown beneath the feature_id in column one. */
+.cvf-feature-gene {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+/* Muted dash for an empty cell value (e.g. a missing biotype). */
+.cvf-empty {
+  color: #9ca3af;
+}
