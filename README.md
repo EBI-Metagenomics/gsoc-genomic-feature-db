@@ -1,76 +1,354 @@
 # gsoc-genomic-feature-db
-GSOC Project #14 - A genomic feature database in the browser
 
-This project provides a serverless, local-first search interface for massive genomic datasets. It parses `.gff.gz` files into a compact, highly optimized SQLite database with FTS5 (Full-Text Search), which is then queried directly in the browser using a Web Worker and `sqlite-wasm-http` via HTTP Range requests.
+**GSoC 2026 Project #14 — A genomic feature database in the browser**
 
-## Project Structure
-
-- **`scripts/`**: Contains Python backend tools, primarily `indexer.py`, which parses genomic data and outputs an optimized FTS5 SQLite database.
-- **`ui-component/`**: The frontend React/Vite application. 
-  - `src/component/`: UI components like the debounced `SearchBar`.
-  - `src/workers/`: The Web Worker (`db.worker.ts`) handling asynchronous SQLite VFS operations.
-- **`database/`**: The output directory for the generated `genomics.db.zip` database. This directory is served statically by Vite.
-
-## Getting Started
-
-### 1. Database Generation (Backend)
-
-First, generate the SQLite database from your genomic `.gff` files. You will need Python 3 installed.
-
-```bash
-# Install python requirements (if applicable)
-pip install ruff black
-
-# Run the indexer script on your data
-python scripts/indexer.py sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz -o database/genomics.db.zip
-```
-*(The generated database is saved to the `database/` folder, which is statically served by the frontend).*
-
-### 2. Running the Frontend App
-
-Once the database is generated, navigate to the UI component directory and start the Vite development server:
-
-```bash
-cd ui-component
-
-# Install Node.js dependencies
-npm install
-
-# Start the dev server
-npm run dev
-```
-
-Open `http://localhost:5173/` in your browser. The app will securely load the local SQLite database and provide millisecond search capabilities!
+> A serverless, local-first search interface that lets bioinformaticians query millions of genomic features directly in the browser, backed by a compact SQLite FTS5 database served via HTTP Range requests.
 
 ---
 
-## Code Style & Contributing
+## What This Project Is
 
-This project enforces standard formatting and linting for Python code.
+The system has two halves:
 
-- **[Black](https://black.readthedocs.io/)**: Python code formatting
-- **[Ruff](https://docs.astral.sh/ruff/)**: Python linting
+| Half | Language | Purpose |
+|------|----------|---------|
+| **Backend indexer** (`scripts/`) | Python 3 (stdlib only) | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
+| **Frontend app** (`ui-component/`) | TypeScript / React / Vite | Load the database in the browser via a Web Worker + HTTP Range requests → provide millisecond search |
 
-### Pre-commit Hooks
+There is **no server at runtime**. The database is a static file served alongside the frontend assets. All querying happens client-side in a Web Worker.
 
-Pre-commit hooks are configured to run automatically and ensure all code is formatted before it is committed.
+**Primary users:** Bioinformaticians and genomics researchers who need fast, interactive exploration of genomic annotations (gene names, biotypes, GO terms, Pfam domains, etc.).
+
+**Deployment target:** Static hosting (GitHub Pages, Vercel). Zero backend infrastructure.
+
+---
+
+## Architecture Overview
+
+```
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  BUILD TIME (offline, one-shot)                                 │
+  │                                                                 │
+  │  .gff.gz files ──▶ scripts/indexer.py ──▶ database/genomics.db.zip │
+  │                     │                                           │
+  │                     ├── parser.py      (GFF line parsing)       │
+  │                     ├── models.py      (GenomicFeature dataclass)│
+  │                     ├── database.py    (schema, insert, verify) │
+  │                     └── config.py      (constants & tuning)     │
+  └─────────────────────────────────────────────────────────────────┘
+                              │
+                    static file served by Vite
+                              │
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  RUNTIME (browser, no server)                                   │
+  │                                                                 │
+  │  App.tsx                                                        │
+  │    └─ useDbSearch.ts  (React hook — worker lifecycle + state)   │
+  │         └─ db.worker.ts  (Web Worker — Comlink + sqlite-wasm-http) │
+  │              └─ HTTP Range requests ──▶ genomics.db.zip         │
+  │                                                                 │
+  │  SearchBar.tsx  (debounced input → results table)               │
+  └─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Runtime Flow
+
+1. `useDbSearch` boots a Web Worker (`db.worker.ts`) on mount.
+2. The worker uses `sqlite-wasm-http` to open the remote `.db.zip` via HTTP VFS — only fetching database pages on demand (no full download).
+3. User types ≥ 4 chars → 200 ms debounce → worker executes `FTS5 MATCH` (top 25 by rank) → results returned via Comlink → table renders.
+
+---
+
+## Database Design (Two-Table Architecture)
+
+### `feature_meta` — regular SQLite table (display data)
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `rowid` | INTEGER PK | Shared rowid for JOIN |
+| `feature_id` | TEXT | Unique feature identifier |
+| `name` | TEXT | Gene/feature name |
+| `feature_type` | TEXT | Biological type (gene, mRNA, CDS, exon…) |
+| `seqid` | TEXT | Chromosome / contig |
+| `start` | INTEGER | 1-based start coordinate |
+| `end` | INTEGER | 1-based end coordinate |
+| `strand` | TEXT | `+`, `-`, or `.` |
+| `biotype` | TEXT | Classification (protein_coding, lncRNA…) |
+| `description` | TEXT | Product / description text |
+| `functional_summary` | TEXT | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
+
+### `search_fts` — contentless FTS5 virtual table (search index)
+
+| Column | Indexed | Purpose |
+|--------|---------|---------|
+| `feature_id` | ✅ | Identifier search |
+| `name` | ✅ | Gene name search |
+| `biotype` | ✅ | Column-targeted filtering (`biotype:protein_coding`) |
+| `description` | ✅ | Keyword search in descriptions |
+| `annotations` | ✅ | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
+
+### FTS5 Configuration Rationale
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| `content` | `''` (contentless) | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size. |
+| `detail` | `column` | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`. |
+| `columnsize` | `1` | Enables BM25 length-aware ranking. Small cost, meaningful relevance improvement. |
+| `tokenize` | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens. |
+
+### Why Contentless + Two Tables?
+
+- **5–6× smaller** than pure FTS5 with zero loss in search accuracy.
+- `annotations` (the longest field) is indexed for search but never stored — only the shorter `functional_summary` is stored for UI display.
+- The pipeline is **write-once** (rebuild from GFF files), so DELETE/UPDATE limitations of contentless FTS are irrelevant.
+
+---
+
+## Directory Map
+
+```
+gsoc-genomic-feature-db/
+├── scripts/                          # Python backend indexer
+│   ├── indexer.py                     # CLI entry point
+│   ├── parser.py                      # GFF file parser
+│   ├── database.py                    # SQLite builder, repo, verifier
+│   ├── models.py                      # GenomicFeature dataclass
+│   ├── config.py                      # Constants and PRAGMAs
+│   ├── utils.py                       # Logger, helpers
+│   ├── verify_schema.py               # Standalone DB verification
+│   └── README.md                      # Indexer documentation
+│
+├── ui-component/                      # React/Vite frontend
+│   ├── src/
+│   │   ├── config.ts                  # Central constants (single source of truth)
+│   │   ├── App.tsx                    # Root component (wires hook → SearchBar)
+│   │   ├── main.tsx                   # React entry point
+│   │   ├── index.css                  # Global layout
+│   │   ├── cvf-genomic-search.css     # Search / badge / popover / table styles
+│   │   │
+│   │   ├── hooks/
+│   │   │   └── useDbSearch.ts         # Worker lifecycle + search state
+│   │   │
+│   │   ├── workers/
+│   │   │   ├── db.worker.ts           # SQLite WASM + HTTP VFS (Comlink)
+│   │   │   └── fts.ts                 # Pure FTS5 MATCH-expression builder
+│   │   │
+│   │   └── component/
+│   │       ├── SearchBar.tsx          # Orchestrator (state + debounce)
+│   │       ├── SearchForm.tsx         # Input row (select + input + button)
+│   │       ├── ResultsTable.tsx       # Sticky-header results table
+│   │       ├── AnnotationBadges.tsx   # Badge components + popover + legend
+│   │       └── annotations/
+│   │           ├── sources.ts         # Annotation source catalogue (data)
+│   │           └── parse.ts           # functional_summary parser
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── tsconfig.json
+│
+├── database/                          # Generated SQLite database (served statically)
+│   └── genomics.db.zip
+│
+├── sample_data/                       # Test GFF files
+│
+├── tests/                             # Python test suite (pytest)
+│   ├── conftest.py                    # Fixtures (builds test DB from sample GFF)
+│   ├── test_database.py               # Database builder + verifier tests
+│   ├── test_indexer.py                # End-to-end indexer tests
+│   └── test_parser.py                 # GFF parser tests
+│
+├── docs/                              # Design documentation
+│   ├── schema-reference.md            # Full schema + FTS5 config docs
+│   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
+│   ├── advanced_column_search.md      # detail=column rationale
+│   └── plan.md                        # GSoC timeline + WBS
+│
+├── .github/workflows/ci.yml           # GitHub Actions CI
+├── .pre-commit-config.yaml            # Black + Ruff hooks
+└── README.md
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+ (no external packages needed for the indexer)
+- Node.js 20+ / npm
+
+### 1. Generate the Database
 
 ```bash
-# Install hooks (run once)
+python scripts/indexer.py \
+  sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz \
+  -o database/genomics.db.zip
+```
+
+The generated database is saved to `database/` and served statically by Vite.
+
+**CLI options:** `--prefix` (pre-index 3/4-char prefixes), `--no-vacuum`, `--limit N`.
+
+### 2. Run the Frontend
+
+```bash
+cd ui-component
+npm install
+npm run dev
+# Open http://localhost:5173/
+```
+
+### 3. Run Python Tests
+
+```bash
+pip install pytest
+pytest tests/ -v
+```
+
+---
+
+## Frontend Component Tree
+
+```
+App.tsx
+├── useDbSearch.ts           (hook: worker lifecycle, search state)
+│   └── db.worker.ts         (Web Worker: SQLite WASM + HTTP VFS + Comlink)
+│       └── fts.ts           (pure FTS5 MATCH builder)
+└── SearchBar.tsx            (debounced input, column scope, results table)
+    ├── SearchForm.tsx       (input row: select + input + button)
+    ├── ResultsTable.tsx     (sticky-header table)
+    │   └── AnnotationBadges.tsx  (letter badges + click popover + legend)
+    │       ├── annotations/sources.ts  (badge catalogue)
+    │       └── annotations/parse.ts    (functional_summary parser)
+    ├── AnnotationLegend
+    └── AnnotationPopover
+```
+
+### Search Query Pipeline (Browser-Side)
+
+1. **Gate:** require ≥ 4 characters before touching the DB.
+2. **Sanitise:** replace punctuation with spaces except `_` and `.` (kept as tokenchars) → split into tokens.
+3. **Prefix match:** each token gets `*` appended; tokens joined as implicit AND: `dnaA* protein*`.
+4. **Column scope:** optional allow-listed column wraps query as `col : (term1* term2*)`.
+5. **Two-stage SQL:** rank + `LIMIT 25` inside an FTS subquery, then JOIN only those ≤ 25 rowids to `feature_meta`.
+
+### Annotation Display
+
+`functional_summary` renders as compact, colour-coded **single-letter source badges** (`P` Pfam, `I` InterPro, `K` KEGG, `G` GO, `E` EC, `N` eggNOG, `C` COG, `X` DbXref, `…` Other) — fixed-width regardless of annotation count. Clicking a badge opens a popover listing every value for that source.
+
+> **CSS class convention:** custom classes use hyphens (`cvf-annotation-legend`, `cvf-annotation-popover`, …), not dots. An earlier escaped-dot form (`cvf\.foo`) broke styling — `className="cvf\.foo"` produces the literal class `cvf\foo`, which never matches the CSS selector `.cvf\.foo`.
+
+---
+
+## Key Design Decisions
+
+| # | Decision | Alternatives Considered | Rationale |
+|---|----------|------------------------|-----------|
+| 1 | **Contentless FTS5** | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size. |
+| 2 | **`detail=column`** | `detail=none`, `detail=full` | Column-targeted search is critical UX. `none` can't do it; `full` is wasteful. |
+| 3 | **Two-table design** | Single FTS5 table | Separate display (native types, `functional_summary`) from search (FTS only). |
+| 4 | **HTTP VFS (Range requests)** | Download entire DB upfront | On-demand page fetching — only query-touched pages are fetched. |
+| 5 | **Web Worker + Comlink** | Main-thread SQLite | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI. |
+| 6 | **Python stdlib only** | pandas, BioPython | Zero external dependencies = easier onboarding, reproducibility, CI. |
+| 7 | **`annotations` vs `functional_summary` split** | Single field for both | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars). |
+| 8 | **Prefix matching** over phrase search | FTS5 phrase queries | Multi-word queries split into individual prefix terms — more forgiving for genomic search. |
+
+---
+
+## Backend Indexer Pipeline
+
+### Modules
+
+| File | Role |
+|------|------|
+| [`indexer.py`](scripts/indexer.py) | CLI entry point. Coordinates parsing → insertion → verification → optimisation. |
+| [`parser.py`](scripts/parser.py) | `GFFParser` class. Reads `.gff`/`.gff.gz`, parses attributes, builds annotations, filters low-value features. |
+| [`database.py`](scripts/database.py) | `DatabaseBuilder` (schema + PRAGMAs), `FeatureRepository` (batch insert + optimise), `DatabaseVerifier` (7-check integrity suite). |
+| [`models.py`](scripts/models.py) | `GenomicFeature` dataclass with typed fields and tuple conversion. |
+| [`config.py`](scripts/config.py) | All constants: `BATCH_SIZE`, `LOW_VALUE_TYPES`, `FUNCTIONAL_TAGS`, `DESCRIPTION_KEYS`, `NAME_KEYS`, `ID_KEYS`, `BIOTYPE_KEYS`, SQLite PRAGMAs. |
+| [`utils.py`](scripts/utils.py) | Logger factory, DB size helper. |
+| [`verify_schema.py`](scripts/verify_schema.py) | Standalone verification script for manual DB inspection. |
+
+### Key Behaviours
+
+- **No external dependencies** — Python standard library only.
+- **Low-value filtering:** Features of types like `exon`, `region`, `chromosome` are skipped unless they carry real annotations.
+- **Deduplication:** Annotation values already present in `name`, `description`, or `biotype` are excluded from the `annotations` field.
+- **Post-build verification:** 7 automated integrity checks (row count sync, rowid sync, NULL IDs, valid coordinates, valid strands, FTS5 integrity-check).
+- **Batch insertion:** Default 150,000 rows per batch for performance.
+
+---
+
+## Tech Stack
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| React | 18.3 | UI framework |
+| Vite | 5.4 | Dev server + bundler |
+| TypeScript | 5.5 | Type safety |
+| EMBL VF CDN | 2.5 | Global layout and styling |
+| Custom CSS | - | Component-specific styling (`cvf-*`) |
+| `@sqlite.org/sqlite-wasm` | 3.51 | SQLite compiled to WASM |
+| `sqlite-wasm-http` | 1.2 | HTTP VFS — fetch DB pages via Range requests |
+| Comlink | 4.4 | Typed RPC between main thread and Web Worker |
+| Python (stdlib) | 3.10+ | Backend indexer (sqlite3, gzip, argparse, dataclasses) |
+
+---
+
+## Development Workflow
+
+### Code Quality
+
+**Python** — Black formatting + Ruff linting:
+
+```bash
+# Install pre-commit hooks (once)
 pre-commit install
 
-# Run manually on all files
+# Format and lint
+black .
+ruff check --fix .
+
+# Run all pre-commit hooks
 pre-commit run --all-files
 ```
 
-### Manual Formatting
-
-If you want to manually format or lint your Python scripts without committing:
+**TypeScript** — Strict mode, ES module workers:
 
 ```bash
-# Format code with Black
-black .
-
-# Lint and fix with Ruff
-ruff check --fix .
+cd ui-component
+npm install
+npm run build     # tsc -b && vite build
 ```
+
+### Deployment
+
+- **GitHub Pages**: `npm run deploy` (uses `gh-pages` package).
+- **Vercel**: Auto-detected via `process.env.VERCEL` in `vite.config.ts` (sets `base: '/'`).
+
+---
+
+## Contributing
+
+1. Install pre-commit hooks: `pre-commit install`
+2. Create a feature branch
+3. Make your changes (Black + Ruff for Python, strict TypeScript for frontend)
+4. Run tests: `pytest tests/ -v`
+5. Submit a pull request
+
+---
+
+## GSoC Timeline
+
+| Date | Milestone |
+|------|-----------|
+| May 25, 2026 | Project Work Period Start |
+| Jul 6–10, 2026 | Midterm Evaluation |
+| Aug 17–24, 2026 | Final Submission |
+| Aug 24–31, 2026 | Final Evaluation |
+| Nov 9, 2026 | Project Completion Date |
+
+---
+
+## License
+
+This project is part of [GSoC 2026](https://summerofcode.withgoogle.com/) with [EBI-Metagenomics](https://github.com/EBI-Metagenomics).
