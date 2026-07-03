@@ -220,6 +220,7 @@ __marimo__/
 .streamlit/secrets.toml
 .agents
 .gemini/
-ui-component/
 node_modules
 /sample_data/
+context.md
+.commandcode          

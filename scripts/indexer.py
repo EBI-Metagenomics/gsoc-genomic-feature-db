@@ -51,6 +51,13 @@ def build_database(
                     if limit is not None and parsed_features >= limit:
                         break
 
+                    if line.startswith("##FASTA") or line.startswith(">"):
+                        logger.info("Encountered FASTA section, stopping parser.")
+                        break
+
+                    if not line or line.startswith("#") or line.isspace():
+                        continue
+
                     feature = GFFParser.parse_line(line, generated_id)
 
                     if feature is None:
