@@ -1,0 +1,14 @@
+@import './cvf-genomic-search.css';
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+#root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
