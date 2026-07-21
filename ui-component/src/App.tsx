@@ -6,28 +6,37 @@ export default function App() {
     results,
     loading,
     searching,
-    status,
+    loadingMore,
+    hasMore,
     error,
     elapsed,
     search,
+    loadMore,
   } = useDbSearch();
 
   return (
-    <main className="vf-stack vf-stack--400" style={{ maxWidth: '80rem', margin: '0 auto', padding: '2rem 1rem' }}>
-      <section className="vf-intro">
+    <main className="vf-stack vf-stack--400" style={{ width: "85%", maxWidth: "100rem", boxSizing: "border-box", margin: "0 auto", padding: "2rem 1rem" }}>
+      <section style={{ width: "100%", textAlign: "center" }}>
         <h1 className="vf-intro__heading">Genomic Feature Search</h1>
-        <p className="vf-intro__text">
-          {loading ? "⏳ " : "✅ "}{status}
-        </p>
       </section>
+      {error && (
+        <div role="alert" className="vf-banner vf-banner--alert vf-banner--danger">
+          <div className="vf-banner__content">
+            <p className="vf-banner__text">
+              <strong>Error:</strong> {error}
+            </p>
+          </div>
+        </div>
+      )}
       <SearchBar
         results={results}
         loading={loading}
         searching={searching}
-        status={status}
-        error={error}
+        loadingMore={loadingMore}
+        hasMore={hasMore}
         elapsed={elapsed}
         search={search}
+        loadMore={loadMore}
       />
     </main>
   );

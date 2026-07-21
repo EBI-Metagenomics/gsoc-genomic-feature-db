@@ -179,29 +179,41 @@ export function AnnotationPopover({
 
 // One-line legend: only the sources actually present in the current results.
 export function AnnotationLegend({ results }: { results: GenomicFeature[] }) {
-  const present = useMemo(() => {
-    const keys = new Set<string>();
+  const coverage = useMemo(() => {
+    const counts = new Map<string, number>();
     for (const f of results) {
-      for (const s of parseAnnotations(f.functional_summary)) keys.add(s.meta.key);
+      const featureSources = new Set(
+        parseAnnotations(f.functional_summary).map((source) => source.meta.key)
+      );
+      for (const key of featureSources) counts.set(key, (counts.get(key) ?? 0) + 1);
     }
-    return SOURCES.filter((s) => keys.has(s.key));
+    return SOURCES.flatMap((source) => {
+      const count = counts.get(source.key);
+      return count ? [{ source, count }] : [];
+    });
   }, [results]);
 
-  if (present.length === 0) return null;
+  if (coverage.length === 0) return null;
 
   return (
-    <div className="cvf-annotation-legend">
-      <span className="cvf-annotation-legend-title">Annotations:</span>
-      {present.map((s) => (
-        <span key={s.key} className="cvf-annotation-legend-item">
+    <div className="cvf-annotation-legend" style={{ flexWrap: "wrap" }}>
+      <span className="cvf-annotation-legend-title">
+        Annotation sources in loaded results ({results.length})
+      </span>
+      {coverage.map(({ source, count }) => (
+        <span
+          key={source.key}
+          className="cvf-annotation-legend-item"
+          aria-label={`${source.label}: ${count} loaded feature${count !== 1 ? "s" : ""}`}
+        >
           <span
             className="cvf-annotation-badge cvf-annotation-badge--static"
             aria-hidden="true"
-            style={{ color: s.color, backgroundColor: s.bg, borderColor: s.color }}
+            style={{ color: source.color, backgroundColor: source.bg, borderColor: source.color }}
           >
-            {s.letter}
+            {source.letter}
           </span>
-          {s.label}
+          {source.label} {count}
         </span>
       ))}
     </div>
