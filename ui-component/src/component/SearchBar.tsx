@@ -1,4 +1,4 @@
-// SearchBar.tsx — orchestrates the search experience: owns query/column state and
+// SearchBar.tsx — orchestrates the search experience: owns query state and
 // the debounce timer, then composes SearchForm (input row) and ResultsTable
 // (matches) with the annotation legend/popover.
 
@@ -7,6 +7,7 @@ import { DEBOUNCE_MS, MIN_QUERY_LENGTH } from "../config";
 import type { GenomicFeature } from "../hooks/useDbSearch";
 import SearchForm from "./SearchForm";
 import ResultsTable from "./ResultsTable";
+import FeatureTypeFacets from "./FeatureTypeFacets";
 import {
   AnnotationLegend,
   AnnotationPopover,
@@ -17,23 +18,24 @@ interface SearchBarProps {
   results: GenomicFeature[];
   loading: boolean;
   searching: boolean;
-  status: string;
-  error: string | null;
+  loadingMore: boolean;
+  hasMore: boolean;
   elapsed: number;
-  search: (query: string, column?: string) => Promise<void>;
+  search: (query: string) => Promise<void>;
+  loadMore: () => Promise<void>;
 }
 
 export default function SearchBar({
   results,
   loading,
   searching,
-  error,
+  loadingMore,
+  hasMore,
   elapsed,
   search,
+  loadMore,
 }: SearchBarProps) {
   const [query, setQuery] = useState("");
-  // Selected FTS column to scope the search to ("all" = match every column).
-  const [column, setColumn] = useState<string>("all");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Single open-at-a-time annotation popover (see AnnotationBadges).
@@ -54,24 +56,13 @@ export default function SearchBar({
 
       if (val.trim().length >= MIN_QUERY_LENGTH) {
         timerRef.current = setTimeout(() => {
-          search(val, column);
+          search(val);
         }, DEBOUNCE_MS);
       } else {
         search("");
       }
     },
-    [search, column]
-  );
-
-  // Changing the column re-runs the current query immediately against the new scope.
-  const handleColumnChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const col = e.target.value;
-      setColumn(col);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      if (query.trim().length >= MIN_QUERY_LENGTH) search(query, col);
-    },
-    [query, search]
+    [search]
   );
 
   // Explicit submit (button click or Enter): cancel any pending debounce and run
@@ -81,9 +72,9 @@ export default function SearchBar({
       e.preventDefault();
       if (timerRef.current) clearTimeout(timerRef.current);
       const val = query.trim();
-      search(val.length >= MIN_QUERY_LENGTH ? query : "", column);
+      search(val.length >= MIN_QUERY_LENGTH ? query : "");
     },
-    [query, column, search]
+    [query, search]
   );
 
   // Cleanup the pending debounce timer on unmount.
@@ -97,38 +88,45 @@ export default function SearchBar({
     <div className="vf-stack vf-stack--400">
       <SearchForm
         query={query}
-        column={column}
         loading={loading}
         searching={searching}
         onQueryChange={handleChange}
-        onColumnChange={handleColumnChange}
         onSubmit={handleSubmit}
       />
-
-      {/* Error banner */}
-      {error && (
-        <div className="vf-banner vf-banner--alert vf-banner--danger">
-          <p className="vf-banner__text">⚠️ {error}</p>
-        </div>
-      )}
 
       {/* Results meta */}
       {!loading && results.length > 0 && (
         <p className="cvf-search-meta">
-          {results.length} result{results.length !== 1 ? "s" : ""} in {elapsed.toFixed(1)} ms
+          {results.length} result{results.length !== 1 ? "s" : ""} loaded in {elapsed.toFixed(1)} ms
         </p>
       )}
 
-      {/* Annotation legend: decodes the letter badges for the sources on screen */}
+      <FeatureTypeFacets results={results} />
+
+      {/* Annotation legend: loaded-feature coverage in the curated source order */}
       {results.length > 0 && <AnnotationLegend results={results} />}
 
       {/* Results table */}
       {results.length > 0 && (
-        <ResultsTable
-          results={results}
-          openKey={popover?.key ?? null}
-          onToggleAnnotation={toggleAnnotation}
-        />
+        <>
+          <ResultsTable
+            results={results}
+            openKey={popover?.key ?? null}
+            onToggleAnnotation={toggleAnnotation}
+          />
+          {hasMore && (
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <button
+                type="button"
+                className="vf-button vf-button--secondary"
+                onClick={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading…" : "Load More"}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Empty state */}

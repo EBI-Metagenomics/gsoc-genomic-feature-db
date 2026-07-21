@@ -3,7 +3,7 @@
 
 import * as Comlink from "comlink";
 import { initSyncSQLite, createHttpBackend } from "sqlite-wasm-http";
-import { MAX_RESULTS, HTTP_MAX_PAGE_SIZE, HTTP_CACHE_SIZE } from "../config";
+import { SEARCH_PAGE_SIZE, HTTP_MAX_PAGE_SIZE, HTTP_CACHE_SIZE } from "../config";
 import { buildMatchExpression } from "./fts";
 
 // ---------------------------------------------------------------------------
@@ -24,9 +24,11 @@ export interface GenomicFeature {
   functional_summary: string;
 }
 
-export interface SearchResult {
+export interface SearchPageResult {
   features: GenomicFeature[];
   elapsed_ms: number;
+  next_cursor: number | null;
+  has_more: boolean;
 }
 
 export interface SequenceRegion {
@@ -44,6 +46,52 @@ let sqlite3: any = null;
 let httpBackend: any = null;
 
 // ---------------------------------------------------------------------------
+// Shared query execution
+// ---------------------------------------------------------------------------
+
+// Runs one rowid-ordered page for production callers.
+function execSearch(query: string, column?: string, afterRowid?: number): SearchPageResult {
+  if (!db) throw new Error("Database not initialised");
+
+  const t0 = performance.now();
+
+  // Sanitise + build the FTS5 MATCH expression (see workers/fts.ts). null means
+  // the input has nothing usable (too short, or sanitises to empty).
+  const matchExpr = buildMatchExpression(query, column);
+  if (matchExpr === null) {
+    return { features: [], elapsed_ms: 0, next_cursor: null, has_more: false };
+  }
+
+  console.log(`[db.worker] search("${query}", column=${column ?? "all"}) → MATCH: ${matchExpr}`);
+
+  const hasCursor = afterRowid !== undefined;
+  const sql = `
+  SELECT m.rowid AS id, m.feature_id, m.name, m.feature_type,
+         m.seqid, m.start, m.end, m.strand, m.biotype,
+         m.description, m.functional_summary
+  FROM search_fts AS f
+  JOIN feature_meta AS m ON m.rowid = f.rowid
+  WHERE search_fts MATCH ?
+  ${hasCursor ? "AND f.rowid > ?" : ""}
+  ORDER BY f.rowid
+  LIMIT ?;
+  `;
+
+  const bindings = hasCursor
+    ? [matchExpr, afterRowid, SEARCH_PAGE_SIZE]
+    : [matchExpr, SEARCH_PAGE_SIZE];
+  const rows = db.selectObjects(sql, bindings) as GenomicFeature[];
+  const elapsed_ms = performance.now() - t0;
+  console.log(`[db.worker] search found ${rows.length} results in ${elapsed_ms.toFixed(1)} ms`);
+  return {
+    features: rows,
+    elapsed_ms,
+    next_cursor: rows.length > 0 ? Number(rows[rows.length - 1].id) : null,
+    has_more: rows.length === SEARCH_PAGE_SIZE,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public API (exposed via Comlink)
 // ---------------------------------------------------------------------------
 
@@ -57,54 +105,14 @@ const workerApi = {
 
   /**
    * Full-text search against the FTS5 table.
-   * Returns matching features ordered by FTS rank.
+   * Returns one page of matching features ordered by FTS rowid.
    *
    * @param query  Raw user input.
    * @param column Optional FTS column to restrict the match to. When omitted (or
    *               not in FTS_COLUMNS) the query matches across all columns.
    */
-  search(query: string, column?: string): SearchResult {
-    if (!db) throw new Error("Database not initialised");
-
-    const t0 = performance.now();
-
-    // Sanitise + build the FTS5 MATCH expression (see workers/fts.ts). null means
-    // the input has nothing usable (too short, or sanitises to empty).
-    const matchExpr = buildMatchExpression(query, column);
-    if (matchExpr === null) return { features: [], elapsed_ms: 0 };
-
-    console.log(`[db.worker] search("${query}", column=${column ?? "all"}) → MATCH: ${matchExpr}`);
-
-    // Two-stage query: rank + limit inside the FTS subquery FIRST, then join only
-    // the top MAX_RESULTS rowids against feature_meta. This keeps the (potentially
-    // remote, HTTP-VFS-backed) join down to at most MAX_RESULTS row lookups.
-    const sql = `
-      SELECT m.rowid AS id, m.feature_id, m.name, m.feature_type,
-             m.seqid, m.start, m.end, m.strand, m.biotype, m.description,
-             m.functional_summary
-        FROM (
-          SELECT rowid, rank
-            FROM search_fts
-           WHERE search_fts MATCH ?
-           ORDER BY rank
-           LIMIT ${MAX_RESULTS}
-        ) f
-        JOIN feature_meta m ON m.rowid = f.rowid
-       ORDER BY f.rank;
-    `;
-
-    let rows: GenomicFeature[];
-    try {
-      rows = db.selectObjects(sql, [matchExpr]) as GenomicFeature[];
-    } catch (err: any) {
-      // A malformed MATCH expression should degrade to "no results" rather than
-      // throwing and breaking the UI's search loop.
-      console.warn(`[db.worker] search("${query}") failed: ${err?.message ?? err}`);
-      return { features: [], elapsed_ms: performance.now() - t0 };
-    }
-
-    console.log(`[db.worker] search found ${rows.length} results in ${(performance.now() - t0).toFixed(1)} ms`);
-    return { features: rows, elapsed_ms: performance.now() - t0 };
+  searchPage(query: string, column?: string, afterRowid?: number): SearchPageResult {
+    return execSearch(query, column, afterRowid);
   },
 
   /**

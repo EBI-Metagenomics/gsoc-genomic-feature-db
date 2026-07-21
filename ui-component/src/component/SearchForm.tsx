@@ -1,89 +1,69 @@
-// SearchForm.tsx — the search row: column-scope select + debounced input + submit.
-// Stateless: SearchBar owns the query/column state and the debounce timer; this
+// SearchForm.tsx — the search row: debounced input + submit.
+// Stateless: SearchBar owns the query state and the debounce timer; this
 // component just renders the controls and forwards events.
-
-import { SEARCHABLE_COLUMNS, CONTROL_HEIGHT, SELECT_MIN_WIDTH } from "../config";
 
 interface SearchFormProps {
   query: string;
-  column: string;
   loading: boolean;
   searching: boolean;
   onQueryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onColumnChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 }
 
 export default function SearchForm({
   query,
-  column,
   loading,
   searching,
   onQueryChange,
-  onColumnChange,
   onSubmit,
 }: SearchFormProps) {
   return (
-    // Search form: live-search on type + explicit vf-button submit (Enter/click)
+    // Official responsive VF search structure; application logic remains React-owned.
     <form
-      className="vf-form"
+      className="vf-form vf-form--search vf-form--search--responsive | vf-sidebar vf-sidebar--end"
       role="search"
       onSubmit={onSubmit}
-      style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
     >
-      {/* Column scope: leverages the FTS5 detail=column index for per-field search */}
-      <div className="vf-form__item" style={{ marginBottom: 0 }}>
-        <label className="vf-form__label vf-u-sr-only" htmlFor="search-column">
-          Search in field
-        </label>
-        <select
-          id="search-column"
-          className="vf-form__select"
-          value={column}
-          onChange={onColumnChange}
+      <div className="vf-sidebar__inner">
+        <div className="vf-form__item" style={{ position: "relative" }}>
+          <label
+            className="vf-form__label vf-u-sr-only | vf-search__label"
+            htmlFor="genomic-search"
+          >
+            Search genomic features
+          </label>
+          <input
+            id="genomic-search"
+            type="search"
+            className="vf-form__input"
+            placeholder={
+              loading
+                ? "Loading database…"
+                : "Search genes, transcripts, exons… (e.g. WASH7P, OR4F)"
+            }
+            value={query}
+            onChange={onQueryChange}
+            disabled={loading}
+            autoFocus
+          />
+          {searching && <span className="cvf-search-spinner" />}
+        </div>
+        <button
+          type="submit"
+          className="vf-search__button | vf-button vf-button--primary"
           disabled={loading}
-          style={{
-            minWidth: SELECT_MIN_WIDTH,
-            height: CONTROL_HEIGHT,
-            boxSizing: "border-box",
-          }}
         >
-          {SEARCHABLE_COLUMNS.map((c) => (
-            <option key={c.value} value={c.value}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+          <span className="vf-button__text">Search</span>
+          <svg
+            className="vf-icon vf-icon--search-btn | vf-button__icon"
+            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+          >
+            <path d="M23.414 20.591l-4.645-4.645a10.256 10.256 0 1 0-2.828 2.829l4.645 4.644a2.025 2.025 0 0 0 2.828 0 2 2 0 0 0 0-2.828ZM10.25 3.005A7.25 7.25 0 1 1 3 10.255a7.258 7.258 0 0 1 7.25-7.25Z" />
+          </svg>
+        </button>
       </div>
-      <div className="vf-form__item" style={{ position: "relative", flex: 1, marginBottom: 0 }}>
-        <label className="vf-form__label vf-u-sr-only" htmlFor="genomic-search">
-          Search genomic features
-        </label>
-        <input
-          id="genomic-search"
-          type="search"
-          className="vf-form__input"
-          placeholder={
-            loading
-              ? "Loading database…"
-              : "Search genes, transcripts, exons… (e.g. WASH7P, OR4F)"
-          }
-          value={query}
-          onChange={onQueryChange}
-          disabled={loading}
-          autoFocus
-          style={{ height: CONTROL_HEIGHT, boxSizing: "border-box" }}
-        />
-        {searching && <span className="cvf-search-spinner" />}
-      </div>
-      <button
-        type="submit"
-        className="vf-button vf-button--primary"
-        disabled={loading}
-        style={{ height: CONTROL_HEIGHT, whiteSpace: "nowrap" }}
-      >
-        <span className="icon icon-functional" data-icon="1" aria-hidden="true" /> Search
-      </button>
     </form>
   );
 }

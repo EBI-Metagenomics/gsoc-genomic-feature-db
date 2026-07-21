@@ -43,11 +43,15 @@ There is **no server at runtime**. The database is a static file served alongsid
   │  RUNTIME (browser, no server)                                   │
   │                                                                 │
   │  App.tsx                                                        │
-  │    └─ useDbSearch.ts  (React hook — worker lifecycle + state)   │
-  │         └─ db.worker.ts  (Web Worker — Comlink + sqlite-wasm-http) │
-  │              └─ HTTP Range requests ──▶ genomics.db.zip         │
-  │                                                                 │
-  │  SearchBar.tsx  (debounced input → results table)               │
+  │    ├─ useDbSearch.ts  (worker lifecycle + paginated state)      │
+  │    │    └─ db.worker.ts  (Comlink + SQLite HTTP VFS)            │
+  │    │         ├─ fts.ts  (safe FTS5 MATCH builder)               │
+  │    │         └─ HTTP Range requests ──▶ genomics.db.zip         │
+  │    └─ SearchBar.tsx  (all-fields query + Load More)             │
+  │         ├─ SearchForm.tsx  (VF responsive search form)          │
+  │         ├─ FeatureTypeFacets.tsx  (loaded-result counts)        │
+  │         ├─ ResultsTable.tsx                                    │
+  │         └─ AnnotationBadges.tsx  (legend + detail popover)      │
   └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,7 +59,9 @@ There is **no server at runtime**. The database is a static file served alongsid
 
 1. `useDbSearch` boots a Web Worker (`db.worker.ts`) on mount.
 2. The worker uses `sqlite-wasm-http` to open the remote `.db.zip` via HTTP VFS — only fetching database pages on demand (no full download).
-3. User types ≥ 4 chars → 200 ms debounce → worker executes `FTS5 MATCH` (top 25 by rank) → results returned via Comlink → table renders.
+3. User types ≥ 4 chars → 200 ms debounce → worker executes `FTS5 MATCH` → the first 25 rows in stable `rowid` order return through Comlink.
+4. The table and feature-type facet render from those loaded rows. The facet is a display summary, not a separate database query or filter.
+5. **Load More** sends the last `rowid` as a cursor, appends the next 25 unique rows, and updates the facet counts.
 
 ---
 
@@ -135,15 +141,20 @@ gsoc-genomic-feature-db/
 │   │   │
 │   │   └── component/
 │   │       ├── SearchBar.tsx          # Orchestrator (state + debounce)
-│   │       ├── SearchForm.tsx         # Input row (select + input + button)
+│   │       ├── SearchForm.tsx         # VF all-fields input + search button
+│   │       ├── FeatureTypeFacets.tsx  # Counts by type in loaded results
 │   │       ├── ResultsTable.tsx       # Sticky-header results table
 │   │       ├── AnnotationBadges.tsx   # Badge components + popover + legend
+│   │       ├── README.md               # Frontend component documentation
 │   │       └── annotations/
 │   │           ├── sources.ts         # Annotation source catalogue (data)
 │   │           └── parse.ts           # functional_summary parser
+│   ├── index.html                      # React shell + VF/EBI CDN assets
 │   ├── package.json
+│   ├── STRUCTURE.md                    # Current frontend architecture reference
 │   ├── vite.config.ts
-│   └── tsconfig.json
+│   ├── tsconfig.json
+│   └── tsconfig.app.json
 │
 ├── database/                          # Generated SQLite database (served statically)
 │   └── genomics.db.zip
@@ -213,23 +224,33 @@ App.tsx
 ├── useDbSearch.ts           (hook: worker lifecycle, search state)
 │   └── db.worker.ts         (Web Worker: SQLite WASM + HTTP VFS + Comlink)
 │       └── fts.ts           (pure FTS5 MATCH builder)
-└── SearchBar.tsx            (debounced input, column scope, results table)
-    ├── SearchForm.tsx       (input row: select + input + button)
-    ├── ResultsTable.tsx     (sticky-header table)
-    │   └── AnnotationBadges.tsx  (letter badges + click popover + legend)
-    │       ├── annotations/sources.ts  (badge catalogue)
-    │       └── annotations/parse.ts    (functional_summary parser)
-    ├── AnnotationLegend
-    └── AnnotationPopover
+└── SearchBar.tsx            (debounced all-fields input, results table)
+    ├── SearchForm.tsx       (input row: input + button)
+    ├── FeatureTypeFacets.tsx  (display-only counts for loaded rows)
+    ├── ResultsTable.tsx     (sticky-header table; uses AnnotationCell)
+    └── AnnotationBadges.tsx (shared annotation presentation module)
+        ├── AnnotationCell   (per-row source badges)
+        ├── AnnotationLegend (source coverage in loaded rows)
+        ├── AnnotationPopover (values for the selected badge)
+        ├── annotations/sources.ts  (badge catalogue)
+        └── annotations/parse.ts    (functional_summary parser)
 ```
 
 ### Search Query Pipeline (Browser-Side)
 
 1. **Gate:** require ≥ 4 characters before touching the DB.
-2. **Sanitise:** replace punctuation with spaces except `_` and `.` (kept as tokenchars) → split into tokens.
-3. **Prefix match:** each token gets `*` appended; tokens joined as implicit AND: `dnaA* protein*`.
-4. **Column scope:** optional allow-listed column wraps query as `col : (term1* term2*)`.
-5. **Two-stage SQL:** rank + `LIMIT 25` inside an FTS subquery, then JOIN only those ≤ 25 rowids to `feature_meta`.
+2. **Sanitise:** preserve usable letters, numbers, `_`, `.`, and identifier separators, then safely quote FTS terms.
+3. **Prefix match:** ordinary tokens become quoted prefix terms joined as implicit AND: `"dnaA"* "protein"*`. Namespaced IDs such as `GeneID:54998` and `HGNC:HGNC:1729` keep their namespace structure while prefix matching the final value.
+4. **All fields:** production searches the complete FTS index; there is no field dropdown.
+5. **Pagination:** results use stable `rowid` ordering and 25-row keyset pages; **Load More** continues after the previous cursor instead of using SQL offsets.
+
+### Feature-Type Facet
+
+`FeatureTypeFacets.tsx` groups the rows currently loaded in the browser by
+`feature_type`, sorts them by count and name, and labels missing types as
+`Unspecified`. The counts grow when **Load More** appends results. This is currently
+a display-only facet: it explains the loaded result set but does not filter the
+query and does not represent totals across every database match.
 
 ### Annotation Display
 
@@ -244,13 +265,14 @@ App.tsx
 | # | Decision | Alternatives Considered | Rationale |
 |---|----------|------------------------|-----------|
 | 1 | **Contentless FTS5** | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size. |
-| 2 | **`detail=column`** | `detail=none`, `detail=full` | Column-targeted search is critical UX. `none` can't do it; `full` is wasteful. |
+| 2 | **`detail=column` retained in the current DB** | `detail=none`, `detail=full` | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
 | 3 | **Two-table design** | Single FTS5 table | Separate display (native types, `functional_summary`) from search (FTS only). |
 | 4 | **HTTP VFS (Range requests)** | Download entire DB upfront | On-demand page fetching — only query-touched pages are fetched. |
 | 5 | **Web Worker + Comlink** | Main-thread SQLite | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI. |
 | 6 | **Python stdlib only** | pandas, BioPython | Zero external dependencies = easier onboarding, reproducibility, CI. |
 | 7 | **`annotations` vs `functional_summary` split** | Single field for both | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars). |
 | 8 | **Prefix matching** over phrase search | FTS5 phrase queries | Multi-word queries split into individual prefix terms — more forgiving for genomic search. |
+| 9 | **Loaded-result feature-type facet** | A second aggregate DB query | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far. |
 
 ---
 
@@ -285,7 +307,7 @@ App.tsx
 | React | 18.3 | UI framework |
 | Vite | 5.4 | Dev server + bundler |
 | TypeScript | 5.5 | Type safety |
-| EMBL VF CDN | 2.5 | Global layout and styling |
+| EMBL VF CDN | 2.5.28 | Global layout, form, button, table, badge, and error styling |
 | Custom CSS | - | Component-specific styling (`cvf-*`) |
 | `@sqlite.org/sqlite-wasm` | 3.51 | SQLite compiled to WASM |
 | `sqlite-wasm-http` | 1.2 | HTTP VFS — fetch DB pages via Range requests |

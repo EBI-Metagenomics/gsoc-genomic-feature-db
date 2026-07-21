@@ -9,13 +9,13 @@ pieces it composes.
 
 | File | Role |
 |------|------|
-| `SearchBar.tsx` | Orchestrator — owns query/column state + the debounce timer, composes the form and table. |
-| `SearchForm.tsx` | The search row: column-scope `<select>` + debounced input + submit button (stateless). |
+| `SearchBar.tsx` | Orchestrator — owns query state + the debounce timer, composes the form and table. |
+| `SearchForm.tsx` | The all-fields search row: debounced input + submit button (stateless). |
 | `ResultsTable.tsx` | Sticky-header results table; delegates the Annotations column to `AnnotationCell`. |
 | `AnnotationBadges.tsx` | The badge `AnnotationCell` / `AnnotationPopover` / `AnnotationLegend` components + the single-popover hook. |
 | `annotations/sources.ts` | Source catalogue data (badge letters, labels, colours) and the GFF-tag → source map. |
 | `annotations/parse.ts` | Parses a `functional_summary` string into ordered, grouped sources. |
-| `../config.ts` | Central constants (query length, debounce, columns, layout, etc.) shared across the UI and worker. |
+| `../config.ts` | Central constants (query length, debounce, FTS allow-list, layout, etc.) shared across the UI and worker. |
 
 ## Functionality overview
 
@@ -23,9 +23,8 @@ pieces it composes.
 - **Debounced querying**: input is debounced by `DEBOUNCE_MS` (200 ms) and a search only
   runs once the query reaches `MIN_QUERY_LENGTH` (4 characters). Both values live in
   `config.ts` and are shared with `useDbSearch` and `db.worker` so the thresholds never drift.
-- **Column-scoped search**: a dropdown restricts matching to a single FTS column
-  (Feature ID, Name, Biotype, Description, Annotations) or all fields, leveraging the
-  FTS5 `detail=column` index.
+- **All-fields search**: production searches feature IDs, names, biotypes,
+  descriptions, and functional annotations together; there is no field dropdown.
 - **Dynamic feedback**: loading spinner, query execution time (ms), result counts, and
   error banners.
 - **Result visualization**: a table of `Feature ID` (the stable `feature_id`, with the
@@ -41,11 +40,11 @@ pieces it composes.
 The components sit at the top of a local-first pipeline:
 
 1. **The hook (`useDbSearch.ts`)** — owns the Web Worker lifecycle and exposes
-   `results`, `loading`, `searching`, and the `search(query, column?)` callback.
+   paginated state, `search(query)`, and `loadMore()`.
 2. **The Web Worker (`db.worker.ts`)** — loads the SQLite database via **HTTP VFS**
    (Range requests, no full download), sanitises the query (`workers/fts.ts`), and runs
-   a two-stage `FTS5 MATCH` query against `search_fts`, joining the top matches to
-   `feature_meta`. Results come back ordered by rank.
+   an `FTS5 MATCH` query against `search_fts`, joining matches to `feature_meta`.
+   Results use stable rowid ordering and keyset pagination.
 3. **The indexer (`scripts/`)** — `parser.py` parses `.gff` / `.gff.gz` files and
    `database.py` builds the compact two-table SQLite database (`genomics.db.zip`) the
    worker queries.
@@ -56,9 +55,10 @@ interface SearchBarProps {
   results: GenomicFeature[];         // Array of matched genomic features
   loading: boolean;                  // True while the SQLite DB is still initializing
   searching: boolean;                // True while a search query is in-flight
-  status: string;                    // Status message (e.g., "Connecting to database…")
-  error: string | null;              // Error message, if any
+  loadingMore: boolean;              // True while another page is loading
+  hasMore: boolean;                  // Whether another page may exist
   elapsed: number;                   // Execution time of the last query in ms
-  search: (query: string, column?: string) => Promise<void>; // The search trigger
+  search: (query: string) => Promise<void>; // All-fields search trigger
+  loadMore: () => Promise<void>;     // Append the next result page
 }
 ```

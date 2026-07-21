@@ -9,9 +9,9 @@ export const MIN_QUERY_LENGTH = 4;
 // Debounce window (ms) between keystroke and the search firing.
 export const DEBOUNCE_MS = 200;
 
-// Max rows returned to the UI. Enforced inside the FTS subquery so only this many
-// rowids are joined against feature_meta (fewer HTTP-VFS fetches).
-export const MAX_RESULTS = 25;
+// Rows returned by each search page. Production can request as many pages as
+// needed; this value is not a total-result cap.
+export const SEARCH_PAGE_SIZE = 25;
 
 // Remote database served statically by Vite (publicDir → database/). BASE_URL lets
 // the same build work at a subpath (GitHub Pages) or root (Vercel).
@@ -33,28 +33,6 @@ export const FTS_COLUMNS = [
   "annotations",
 ] as const;
 export type FtsColumn = (typeof FTS_COLUMNS)[number];
-
-// Human labels for the column-scope dropdown.
-const COLUMN_LABELS: Record<FtsColumn, string> = {
-  feature_id: "Feature ID",
-  name: "Name",
-  biotype: "Biotype",
-  description: "Description",
-  annotations: "Annotations",
-};
-
-// Dropdown options: "All fields" plus one entry per FTS column. Derived from
-// FTS_COLUMNS so the searchable list and the allow-list cannot fall out of sync.
-export const SEARCHABLE_COLUMNS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "all", label: "All fields" },
-  ...FTS_COLUMNS.map((value) => ({ value, label: COLUMN_LABELS[value] })),
-];
-
-// Shared height (px) for the column select, input, and submit button so the whole
-// search row lines up. The select's min-width keeps the longest option label
-// ("Annotations"/"Description") from clipping under the dropdown arrow.
-export const CONTROL_HEIGHT = 44;
-export const SELECT_MIN_WIDTH = 160;
 
 // Annotation popover geometry (px): fixed width, gap below the anchor badge, and
 // the minimum padding kept between the popover and the viewport edges.
