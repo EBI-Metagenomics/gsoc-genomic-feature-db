@@ -2,12 +2,14 @@
 // Stateless: SearchBar owns the query state and the debounce timer; this
 // component just renders the controls and forwards events.
 
+import type { ChangeEvent, FormEvent } from "react";
+
 interface SearchFormProps {
   query: string;
   loading: boolean;
   searching: boolean;
-  onQueryChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  onQueryChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }
 
 export default function SearchForm({

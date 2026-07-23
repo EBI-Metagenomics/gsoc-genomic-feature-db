@@ -22,20 +22,6 @@
   (function(H){H.className=H.className.replace(/\bvf-no-js\b/,'vf-js')})(document.documentElement);
   </script>
 
-  <!-- COI Service Worker removed — not needed for sync HTTP VFS backend -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (const registration of registrations) {
-          registration.unregister();
-          console.log('[serviceWorker] Unregistered active service worker:', registration);
-        }
-      });
-    }
-  </script>
-
-
-
   <!-- VF CDN Stylesheet -->
   <link rel="stylesheet" href="https://assets.emblstatic.net/vf/v2.5.28/css/styles.css">
 

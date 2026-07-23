@@ -1,6 +1,6 @@
 @import './cvf-genomic-search.css';
 
-body {
+body.vf-body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -8,7 +8,7 @@ body {
 }
 
 #root {
-  flex: 1;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
 }
