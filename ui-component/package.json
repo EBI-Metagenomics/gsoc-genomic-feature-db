@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "index": "python scripts/indexer.py scripts/BU_ATCC8492_annotations.gff",
+    "index": "python ../scripts/indexer.py ../sample_data/BU_ATCC8492_annotations.gff",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },

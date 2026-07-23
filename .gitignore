@@ -221,8 +221,10 @@ __marimo__/
 .agents
 .gemini/
 node_modules
-/sample_data/
+sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz
+sample_data/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
 context.md
 .commandcode          
 .codebase-memory
 .claude
+skills-lock.json

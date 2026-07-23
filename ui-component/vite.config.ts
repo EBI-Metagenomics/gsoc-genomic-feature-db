@@ -14,11 +14,5 @@ export default defineConfig({// @ts-ignore
 
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm", "sqlite-wasm-http"],
-    include: [
-      "@mui/material",
-      "@mui/icons-material",
-      "@mui/material/utils",
-      "@mui/material/SvgIcon",
-    ],
   },
 });
