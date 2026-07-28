@@ -42,7 +42,7 @@ FUNCTIONAL_TAGS = [
 
 DESCRIPTION_KEYS = ["description", "product", "note"]
 NAME_KEYS = ["name", "gene", "gene_name", "locus_tag", "standard_name"]
-ID_KEYS = ["id", "locus_tag","name","protein_id", "transcript_id", "gene"]
+ID_KEYS = ["id", "locus_tag", "name", "protein_id", "transcript_id", "gene"]
 BIOTYPE_KEYS = ["gene_biotype", "biotype", "transcript_biotype", "gbkey"]
 
 PAGE_SIZE = 4096

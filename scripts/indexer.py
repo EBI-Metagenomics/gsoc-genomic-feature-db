@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import sqlite3
 import sys
 import time
 
 from config import BATCH_SIZE
-from database import DatabaseBuilder, FeatureRepository, DatabaseVerifier
 from parser import GFFParser
-from utils import get_logger, get_db_size_mb
+from utils import get_db_size_mb, get_logger
+
+from database import DatabaseBuilder, DatabaseVerifier, FeatureRepository
 
 logger = get_logger("indexer")
+
+
+def default_output_path(gff_path: str) -> str:
+    """Return an accession-specific raw SQLite path beside an input GFF."""
+    lower_path = gff_path.lower()
+    for suffix in (".gff3.gz", ".gff.gz", ".gff3", ".gff"):
+        if lower_path.endswith(suffix):
+            return f"{gff_path[: -len(suffix)]}.db.zip"
+    raise ValueError(
+        "Cannot derive output name: input must end in .gff, .gff3, "
+        ".gff.gz, or .gff3.gz"
+    )
 
 
 def build_database(
@@ -30,8 +44,6 @@ def build_database(
     repo = FeatureRepository(conn)
     verifier = DatabaseVerifier(conn)
 
-    conn.execute("BEGIN;")
-
     parsed_features = 0
     indexed_rows = 0
     skipped_rows = 0
@@ -40,6 +52,7 @@ def build_database(
     fts_batch = []
 
     try:
+        conn.execute("BEGIN;")
         for gff_path in gff_paths:
             logger.info(f"Reading: {gff_path}")
 
@@ -51,7 +64,7 @@ def build_database(
                     if limit is not None and parsed_features >= limit:
                         break
 
-                    if line.startswith("##FASTA") or line.startswith(">"):
+                    if line.startswith(("##FASTA", ">")):
                         logger.info("Encountered FASTA section, stopping parser.")
                         break
 
@@ -120,13 +133,7 @@ def main() -> None:
     parser.add_argument(
         "-o",
         "--output",
-        default=os.path.join(
-            os.path.dirname(__file__),
-            "..",
-            "database",
-            "genomics.db.zip",
-        ),
-        help="Output DB path. Default: ../database/genomics.db.zip",
+        help="Output DB path. Defaults to {gff-name}.db.zip beside one input GFF.",
     )
 
     parser.add_argument(
@@ -149,16 +156,19 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    if args.output is None and len(args.gff) != 1:
+        parser.error("--output is required when indexing multiple GFF files")
 
     try:
+        output_path = args.output or default_output_path(args.gff[0])
         build_database(
             gff_paths=args.gff,
-            db_path=args.output,
+            db_path=output_path,
             use_prefix=args.prefix,
             vacuum=not args.no_vacuum,
             limit=args.limit,
         )
-    except Exception as exc:
+    except (OSError, RuntimeError, sqlite3.Error, ValueError) as exc:
         logger.error(f"ERROR: {exc}")
         sys.exit(1)
 

@@ -1,11 +1,12 @@
+import gzip
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
-import pytest
 
-from indexer import build_database
+import pytest
 from conftest import SAMPLE_GFF
+from indexer import build_database, default_output_path
 
 SCRIPT_DIR = Path(__file__).parent.parent / "scripts"
 
@@ -71,7 +72,7 @@ class TestEdgeCases:
 
     def test_nonexistent_input_raises(self, tmp_path):
         db = tmp_path / "no.db"
-        with pytest.raises(Exception):
+        with pytest.raises(FileNotFoundError):
             build_database("nonexistent_file_xyz.gff3", str(db))
 
     def test_output_db_is_valid_sqlite(self, db_path):
@@ -94,13 +95,51 @@ class TestCLI:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert db.exists()
         assert db.stat().st_size > 0
 
-    def test_cli_default_output(self, tmp_path):
-        db = tmp_path / "default_test.db"
+    @pytest.mark.parametrize(
+        ("filename", "expected"),
+        [
+            ("MGYG000490722.gff", "MGYG000490722.db.zip"),
+            ("MGYG000490722.gff.gz", "MGYG000490722.db.zip"),
+            ("MGYG000490722.gff3", "MGYG000490722.db.zip"),
+            ("MGYG000490722.gff3.gz", "MGYG000490722.db.zip"),
+            ("genome.release.1.gff.gz", "genome.release.1.db.zip"),
+        ],
+    )
+    def test_default_output_name(self, tmp_path, filename, expected):
+        assert default_output_path(str(tmp_path / filename)) == str(tmp_path / expected)
+
+    @pytest.mark.parametrize("suffix", [".gff", ".gff.gz", ".gff3", ".gff3.gz"])
+    def test_cli_default_output(self, tmp_path, suffix):
+        gff = tmp_path / f"accession{suffix}"
+        if suffix.endswith(".gz"):
+            with gzip.open(gff, "wb") as handle:
+                handle.write(SAMPLE_GFF.read_bytes())
+        else:
+            gff.write_bytes(SAMPLE_GFF.read_bytes())
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "indexer.py"),
+                str(gff),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0
+        db = tmp_path / "accession.db.zip"
+        assert db.read_bytes().startswith(b"SQLite format 3\0")
+
+    def test_cli_explicit_output_overrides_default(self, tmp_path):
+        db = tmp_path / "custom" / "features.sqlite"
+        db.parent.mkdir()
         result = subprocess.run(
             [
                 sys.executable,
@@ -111,14 +150,33 @@ class TestCLI:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode == 0
+        assert db.exists()
+        assert not SAMPLE_GFF.with_suffix(".db.zip").exists()
+
+    def test_cli_multiple_inputs_require_output(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "indexer.py"),
+                str(SAMPLE_GFF),
+                str(SAMPLE_GFF),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode != 0
+        assert "--output is required when indexing multiple GFF files" in result.stderr
 
     def test_cli_no_args_exits_with_error(self):
         result = subprocess.run(
             [sys.executable, str(SCRIPT_DIR / "indexer.py")],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0
 
@@ -134,5 +192,6 @@ class TestCLI:
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         assert result.returncode != 0

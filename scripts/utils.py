@@ -1,5 +1,5 @@
-import os
 import logging
+import os
 
 
 def get_db_size_mb(db_path: str) -> float:
