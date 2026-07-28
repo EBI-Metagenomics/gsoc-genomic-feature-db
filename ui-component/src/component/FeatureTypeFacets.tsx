@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { GenomicFeature } from "../hooks/useDbSearch";
+import type { GenomicFeature } from "../types";
 
 const UNSPECIFIED = "Unspecified";
 
@@ -12,7 +12,7 @@ export default function FeatureTypeFacets({ results }: { results: GenomicFeature
     }
 
     return Array.from(byType, ([type, count]) => ({ type, count })).sort(
-      (a, b) => b.count - a.count || a.type.localeCompare(b.type)
+      (a, b) => b.count - a.count || a.type.localeCompare(b.type),
     );
   }, [results]);
 

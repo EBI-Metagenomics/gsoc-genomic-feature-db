@@ -1,0 +1,82 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { resolve, sep } from "node:path";
+
+import type { Plugin } from "vite";
+
+const sampleRoot = fileURLToPath(new URL("../../sample_data", import.meta.url));
+const runtimePath =
+  /^\/([A-Za-z0-9_.-]+)\/\1\.(?:db\.zip|fna|fna\.fai|gff\.gz|gff\.gz\.(?:tbi|csi))$/;
+
+function contentType(pathname: string): string {
+  if (pathname.endsWith(".gff.gz")) return "application/gzip";
+  if (pathname.endsWith(".db.zip")) return "application/vnd.sqlite3";
+  if (pathname.endsWith(".fna") || pathname.endsWith(".fna.fai")) return "text/plain";
+  return "application/octet-stream";
+}
+
+function byteRange(value: string | undefined, size: number): [number, number] | null {
+  if (!value) return null;
+  const match = value.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match) return null;
+
+  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+  const end = match[2] && match[1] ? Math.min(Number(match[2]), size - 1) : size - 1;
+  return Number.isInteger(start) && Number.isInteger(end) && start <= end && start < size
+    ? [start, end]
+    : null;
+}
+
+export function sampleDataPlugin(): Plugin {
+  return {
+    name: "raw-range-sample-data",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use(async (request, response, next) => {
+        const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+        if (!runtimePath.test(pathname)) {
+          next();
+          return;
+        }
+
+        const filePath = resolve(sampleRoot, `.${decodeURIComponent(pathname)}`);
+        if (!filePath.startsWith(`${resolve(sampleRoot)}${sep}`)) {
+          next();
+          return;
+        }
+
+        try {
+          const file = await stat(filePath);
+          if (!file.isFile()) {
+            next();
+            return;
+          }
+
+          const range = byteRange(request.headers.range, file.size);
+          const [start, end] = range ?? [0, file.size - 1];
+          response.statusCode = range ? 206 : 200;
+          response.setHeader("Accept-Ranges", "bytes");
+          response.setHeader("Access-Control-Allow-Origin", "*");
+          response.setHeader("Content-Length", end - start + 1);
+          response.setHeader("Content-Type", contentType(pathname));
+          if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
+
+          if (request.method === "HEAD") {
+            response.end();
+            return;
+          }
+          createReadStream(filePath, { start, end }).on("error", next).pipe(response);
+        } catch (error: unknown) {
+          const code =
+            typeof error === "object" && error && "code" in error ? String(error.code) : "";
+          if (code === "ENOENT") {
+            next();
+            return;
+          }
+          next(error);
+        }
+      });
+    },
+  };
+}

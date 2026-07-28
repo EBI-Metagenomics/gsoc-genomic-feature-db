@@ -15,7 +15,6 @@ export const SEARCH_PAGE_SIZE = 25;
 
 // Remote database served statically by Vite (publicDir → database/). BASE_URL lets
 // the same build work at a subpath (GitHub Pages) or root (Vercel).
-export const DB_URL = `${import.meta.env.BASE_URL}genomics.db.zip`;
 
 // HTTP-VFS backend tuning (sqlite-wasm-http): page size and on-demand cache.
 export const HTTP_MAX_PAGE_SIZE = 8192;
@@ -25,13 +24,7 @@ export const HTTP_CACHE_SIZE = 4096; // ~4 MB
 // (see scripts/database.py) makes per-column MATCH possible; this is also the
 // injection allow-list — a column is only interpolated into MATCH after passing
 // membership here.
-export const FTS_COLUMNS = [
-  "feature_id",
-  "name",
-  "biotype",
-  "description",
-  "annotations",
-] as const;
+export const FTS_COLUMNS = ["feature_id", "name", "biotype", "description", "annotations"] as const;
 export type FtsColumn = (typeof FTS_COLUMNS)[number];
 
 // Annotation popover geometry (px): fixed width, gap below the anchor badge, and
