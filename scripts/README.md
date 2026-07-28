@@ -23,19 +23,28 @@ pip install -r requirements.txt
 
 ## Usage
 
-To parse a `.gff` or `.gff.gz` file and generate the database:
+To parse one `.gff`, `.gff3`, or gzip-compressed equivalent:
 
 ```bash
-python indexer.py ../sample_data/my_genomic_data.gff.gz -o ../database/genomics.db.zip
+python indexer.py ../sample_data/MGYG000490722/MGYG000490722.gff.gz
 ```
+
+This writes `MGYG000490722.db.zip` beside the input. The `.zip` suffix is the
+HTTP delivery name; the file contains raw SQLite bytes and is not a ZIP archive.
 
 ### Options
 
-- `-o, --output`: Where to save the database. (Default: `../database/genomics.db.zip`)
-- `--page-size`: SQLite page size. (Default: 4096)
+- `-o, --output`: Override both the default directory and filename. This is required
+  when indexing multiple GFF inputs.
 - `--prefix`: Enables prefix searching in FTS5 (increases database size).
 - `--no-vacuum`: Skips the final SQLite VACUUM optimization (faster generation, but larger file size).
 - `--limit`: Only parse N rows (useful for quick testing).
+
+Verify a generated database by passing its path explicitly:
+
+```bash
+python verify_schema.py ../sample_data/MGYG000490722/MGYG000490722.db.zip
+```
 
 ## Testing
 

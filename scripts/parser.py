@@ -1,12 +1,13 @@
 import gzip
 from urllib.parse import unquote
+
 from config import (
-    LOW_VALUE_TYPES,
-    FUNCTIONAL_TAGS,
-    DESCRIPTION_KEYS,
-    NAME_KEYS,
-    ID_KEYS,
     BIOTYPE_KEYS,
+    DESCRIPTION_KEYS,
+    FUNCTIONAL_TAGS,
+    ID_KEYS,
+    LOW_VALUE_TYPES,
+    NAME_KEYS,
 )
 from models import GenomicFeature
 

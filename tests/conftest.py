@@ -1,7 +1,8 @@
 import sqlite3
-from pathlib import Path
-import pytest
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add scripts directory to path so tests can import from it
 SCRIPT_DIR = Path(__file__).parent.parent / "scripts"

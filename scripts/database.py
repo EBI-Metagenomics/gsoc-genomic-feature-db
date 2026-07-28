@@ -1,13 +1,14 @@
-import sqlite3
 import os
+import sqlite3
+
 from config import (
     PAGE_SIZE,
+    PRAGMA_CACHE_SIZE,
     PRAGMA_JOURNAL_MODE,
-    PRAGMA_SYNCHRONOUS,
-    PRAGMA_TEMP_STORE,
     PRAGMA_LOCKING_MODE,
     PRAGMA_SECURE_DELETE,
-    PRAGMA_CACHE_SIZE,
+    PRAGMA_SYNCHRONOUS,
+    PRAGMA_TEMP_STORE,
     VALID_STRANDS,
 )
 from utils import get_logger
@@ -178,7 +179,7 @@ class DatabaseVerifier:
             self.cur.execute(
                 "INSERT INTO search_fts(search_fts) VALUES ('integrity-check')"
             )
-        except Exception as exc:
+        except sqlite3.Error as exc:
             errors.append(f"FTS5 integrity check failed: {exc}")
 
         if errors:
