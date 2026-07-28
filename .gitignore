@@ -221,6 +221,9 @@ __marimo__/
 .agents
 .gemini/
 node_modules
+*.tsbuildinfo
+ui-component/playwright-report/
+ui-component/test-results/
 sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz
 sample_data/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
 context.md
