@@ -95,7 +95,7 @@
   margin-bottom: 0.35rem;
 }
 
-.cvf-annotation-group+.cvf-annotation-group {
+.cvf-annotation-group + .cvf-annotation-group {
   margin-top: 0.4rem;
 }
 
@@ -179,4 +179,38 @@
 /* Muted dash for an empty cell value (e.g. a missing biotype). */
 .cvf-empty {
   color: #9ca3af;
+}
+
+.cvf-feature-link {
+  margin: 0;
+  padding: 0;
+  font-family: monospace;
+  font-weight: 600;
+  text-align: left;
+}
+
+.cvf-feature-link:focus-visible {
+  outline: 3px solid #007c82;
+  outline-offset: 2px;
+}
+
+.cvf-result--selected {
+  box-shadow: inset 4px 0 0 #007c82;
+}
+
+.cvf-result--selected .vf-table__cell {
+  background-color: #eef8f8;
+}
+
+.cvf-jbrowse {
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #d0d0ce;
+  border-radius: 4px;
+}
+
+.cvf-jbrowse__error {
+  padding: 1rem;
+  color: #7a1f1f;
+  background: #fff2f2;
 }

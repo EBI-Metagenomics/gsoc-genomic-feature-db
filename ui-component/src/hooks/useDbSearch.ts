@@ -1,57 +1,27 @@
-// useDbSearch.ts — React hook that manages the SQLite Web Worker lifecycle and
-// exposes a simple search interface to the UI.
-
-import { useCallback, useEffect, useRef, useState } from "react";
 import * as Comlink from "comlink";
-import { DB_URL, MIN_QUERY_LENGTH } from "../config";
-import type { WorkerApi, GenomicFeature, SearchPageResult, SequenceRegion } from "../workers/db.worker";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-// Re-export types so consumers don't need to import from the worker file.
-export type { GenomicFeature, SearchPageResult, SequenceRegion };
+import { MIN_QUERY_LENGTH } from "../config";
+import type { GenomicFeature } from "../types";
+import type { WorkerApi } from "../workers/db.worker";
+import {
+  appendUniqueFeatures,
+  errorMessage,
+  type ActiveSearch,
+  type UseDbSearchReturn,
+} from "./dbSearchState";
 
-export interface UseDbSearchReturn {
-  /** Current search results */
-  results: GenomicFeature[];
-  /** Whether the WASM DB is still loading */
-  loading: boolean;
-  /** Whether a search query is in-flight */
-  searching: boolean;
-  /** Whether a later result page is in-flight */
-  loadingMore: boolean;
-  /** Whether SQLite may have another page for the active search */
-  hasMore: boolean;
-  /** Informational status message */
-  status: string;
-  /** Error message, if any */
-  error: string | null;
-  /** Time the last query took (ms) */
-  elapsed: number;
-  /** Trigger an all-fields search. Debounced in the component layer. */
-  search: (query: string) => Promise<void>;
-  /** Append the next page for the active query. */
-  loadMore: () => Promise<void>;
-}
+export type { SearchPageResult, SequenceRegion } from "../workers/db.worker";
+export type { GenomicFeature } from "../types";
+export type { UseDbSearchReturn } from "./dbSearchState";
 
-interface ActiveSearch {
-  generation: number;
-  query: string;
-}
-
-function appendUniqueFeatures(current: GenomicFeature[], incoming: GenomicFeature[]): GenomicFeature[] {
-  const seen = new Set(current.map((feature) => Number(feature.id)));
-  const appended = incoming.filter((feature) => {
-    const id = Number(feature.id);
-    if (seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  });
-  return appended.length > 0 ? [...current, ...appended] : current;
-}
-
-export function useDbSearch(): UseDbSearchReturn {
+/**
+ * Owns a SQLite HTTP-VFS worker for one exact raw database URL.
+ *
+ * Changing `databaseUrl` disposes the old worker and clears accession state.
+ */
+export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
   const workerRef = useRef<Comlink.Remote<WorkerApi> | null>(null);
-  const rawWorkerRef = useRef<Worker | null>(null);
-  const generationRef = useRef(0);
   const activeSearchRef = useRef<ActiveSearch | null>(null);
   const nextCursorRef = useRef<number | null>(null);
   const hasMoreRef = useRef(false);
@@ -66,83 +36,85 @@ export function useDbSearch(): UseDbSearchReturn {
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
 
-  // ---- Boot: fetch DB + init worker ----
   useEffect(() => {
     let cancelled = false;
+    const rawWorker = new Worker(new URL("../workers/db.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    const proxy = Comlink.wrap<WorkerApi>(rawWorker);
 
-    async function boot() {
+    workerRef.current = proxy;
+
+    async function boot(): Promise<void> {
+      await Promise.resolve();
+      if (cancelled) return;
+      activeSearchRef.current = null;
+      nextCursorRef.current = null;
+      hasMoreRef.current = false;
+      loadMoreInFlightRef.current = false;
+      setResults([]);
+      setLoading(true);
+      setSearching(false);
+      setLoadingMore(false);
+      setHasMore(false);
+      setError(null);
+      setElapsed(0);
+      setStatus("Connecting to database…");
       try {
-        // 1. Spin up the Web Worker
-        const raw = new Worker(
-          new URL("../workers/db.worker.ts", import.meta.url),
-          { type: "module" }
-        );
-        rawWorkerRef.current = raw;
-        const proxy = Comlink.wrap<WorkerApi>(raw);
-        workerRef.current = proxy;
-
-        // 2. Let the worker open the remote database
-        setStatus("Connecting to database…");
-        const msg = await proxy.initFromUrl(DB_URL);
-
+        const message = await proxy.initFromUrl(databaseUrl);
         if (!cancelled) {
-          setStatus(msg);
+          setStatus(message);
           setLoading(false);
         }
-      } catch (err: any) {
+      } catch (caught: unknown) {
         if (!cancelled) {
-          setError(err.message ?? String(err));
+          setError(errorMessage(caught));
           setStatus("Failed to initialise database.");
           setLoading(false);
         }
       }
     }
 
-    boot();
-
+    void boot();
     return () => {
       cancelled = true;
-      generationRef.current += 1;
       activeSearchRef.current = null;
-      rawWorkerRef.current?.terminate();
+      proxy[Comlink.releaseProxy]();
+      rawWorker.terminate();
+      if (workerRef.current === proxy) workerRef.current = null;
     };
-  }, []);
+  }, [databaseUrl]);
 
-  // ---- Search ----
   const search = useCallback(async (query: string) => {
-    const generation = ++generationRef.current;
-    const activeSearch = { generation, query };
+    const activeSearch = { query };
     activeSearchRef.current = activeSearch;
     nextCursorRef.current = null;
     hasMoreRef.current = false;
     loadMoreInFlightRef.current = false;
-
     setResults([]);
     setElapsed(0);
     setHasMore(false);
     setLoadingMore(false);
     setError(null);
 
-    // Skip the worker round-trip until the query meets the minimum length.
-    if (query.trim().length < MIN_QUERY_LENGTH) {
+    const worker = workerRef.current;
+    if (query.trim().length < MIN_QUERY_LENGTH || !worker) {
       setSearching(false);
       return;
     }
-    if (!workerRef.current) return;
 
     setSearching(true);
     try {
-      const res = await workerRef.current.searchPage(query);
+      const page = await worker.searchPage(query);
       if (activeSearchRef.current !== activeSearch) return;
-
-      setResults(res.features);
-      setElapsed(res.elapsed_ms);
-      nextCursorRef.current = res.next_cursor;
-      hasMoreRef.current = res.has_more;
-      setHasMore(res.has_more);
-    } catch (err: any) {
+      setResults(page.features);
+      setElapsed(page.elapsed_ms);
+      nextCursorRef.current = page.next_cursor;
+      hasMoreRef.current = page.has_more;
+      setHasMore(page.has_more);
+    } catch (caught: unknown) {
       if (activeSearchRef.current !== activeSearch) return;
-      setError(err.message ?? String(err));
+      setError(errorMessage(caught));
       setResults([]);
       nextCursorRef.current = null;
       hasMoreRef.current = false;
@@ -153,10 +125,11 @@ export function useDbSearch(): UseDbSearchReturn {
   }, []);
 
   const loadMore = useCallback(async () => {
+    const worker = workerRef.current;
     const activeSearch = activeSearchRef.current;
     const cursor = nextCursorRef.current;
     if (
-      !workerRef.current ||
+      !worker ||
       !activeSearch ||
       cursor === null ||
       !hasMoreRef.current ||
@@ -168,25 +141,18 @@ export function useDbSearch(): UseDbSearchReturn {
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
-
     try {
-      const res = await workerRef.current.searchPage(
-        activeSearch.query,
-        undefined,
-        cursor
-      );
+      const page = await worker.searchPage(activeSearch.query, undefined, cursor);
       if (activeSearchRef.current !== activeSearch) return;
-
-      setResults((current) => appendUniqueFeatures(current, res.features));
-      setElapsed((current) => current + res.elapsed_ms);
-      nextCursorRef.current = res.next_cursor;
-      hasMoreRef.current = res.has_more;
-      setHasMore(res.has_more);
-    } catch (err: any) {
-      if (activeSearchRef.current !== activeSearch) return;
-      // Preserve the accepted rows, cursor, and hasMore state so this page can
-      // be retried without restarting the search.
-      setError(err.message ?? String(err));
+      setResults((current) => appendUniqueFeatures(current, page.features));
+      setElapsed((current) => current + page.elapsed_ms);
+      nextCursorRef.current = page.next_cursor;
+      hasMoreRef.current = page.has_more;
+      setHasMore(page.has_more);
+    } catch (caught: unknown) {
+      if (activeSearchRef.current === activeSearch) {
+        setError(errorMessage(caught));
+      }
     } finally {
       if (activeSearchRef.current === activeSearch) {
         loadMoreInFlightRef.current = false;

@@ -4,18 +4,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEBOUNCE_MS, MIN_QUERY_LENGTH } from "../config";
-import type { GenomicFeature } from "../hooks/useDbSearch";
+import type { GenomicFeature } from "../types";
 import SearchForm from "./SearchForm";
 import ResultsTable from "./ResultsTable";
 import FeatureTypeFacets from "./FeatureTypeFacets";
-import {
-  AnnotationLegend,
-  AnnotationPopover,
-  useAnnotationPopover,
-} from "./AnnotationBadges";
+import { AnnotationLegend, AnnotationPopover, useAnnotationPopover } from "./AnnotationBadges";
 
 interface SearchBarProps {
   results: GenomicFeature[];
+  selectedFeature: GenomicFeature | null;
+  onSelectFeature: (feature: GenomicFeature) => void;
   loading: boolean;
   searching: boolean;
   loadingMore: boolean;
@@ -27,6 +25,8 @@ interface SearchBarProps {
 
 export default function SearchBar({
   results,
+  selectedFeature,
+  onSelectFeature,
   loading,
   searching,
   loadingMore,
@@ -62,7 +62,7 @@ export default function SearchBar({
         search("");
       }
     },
-    [search]
+    [search],
   );
 
   // Explicit submit (button click or Enter): cancel any pending debounce and run
@@ -74,7 +74,7 @@ export default function SearchBar({
       const val = query.trim();
       search(val.length >= MIN_QUERY_LENGTH ? query : "");
     },
-    [query, search]
+    [query, search],
   );
 
   // Cleanup the pending debounce timer on unmount.
@@ -111,6 +111,8 @@ export default function SearchBar({
         <>
           <ResultsTable
             results={results}
+            selectedFeature={selectedFeature}
+            onSelectFeature={onSelectFeature}
             openKey={popover?.key ?? null}
             onToggleAnnotation={toggleAnnotation}
           />
@@ -130,11 +132,17 @@ export default function SearchBar({
       )}
 
       {/* Empty state */}
-      {!loading && query.trim().length >= MIN_QUERY_LENGTH && !searching && results.length === 0 && (
-        <p className="vf-text-body vf-u-text-color--grey" style={{ textAlign: "center", marginTop: "2rem" }}>
-          No features matched "{query}".
-        </p>
-      )}
+      {!loading &&
+        query.trim().length >= MIN_QUERY_LENGTH &&
+        !searching &&
+        results.length === 0 && (
+          <p
+            className="vf-text-body vf-u-text-color--grey"
+            style={{ textAlign: "center", marginTop: "2rem" }}
+          >
+            No features matched "{query}".
+          </p>
+        )}
 
       {/* Single annotation popover, portal-rendered to escape the table's overflow */}
       <AnnotationPopover state={popover} onClose={closeAnnotation} />

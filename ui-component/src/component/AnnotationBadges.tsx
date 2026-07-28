@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { POPOVER_WIDTH, POPOVER_GAP, VIEWPORT_PAD } from "../config";
-import type { GenomicFeature } from "../hooks/useDbSearch";
+import type { GenomicFeature } from "../types";
 import { SOURCES } from "./annotations/sources";
 import { parseAnnotations, type ParsedSource } from "./annotations/parse";
 
@@ -33,7 +33,7 @@ export function useAnnotationPopover() {
 
   const toggle = useCallback((key: string, source: ParsedSource, el: HTMLElement) => {
     setPopover((cur) =>
-      cur && cur.key === key ? null : { key, source, rect: el.getBoundingClientRect() }
+      cur && cur.key === key ? null : { key, source, rect: el.getBoundingClientRect() },
     );
   }, []);
 
@@ -140,7 +140,7 @@ export function AnnotationPopover({
   const top = rect.bottom + POPOVER_GAP;
   const left = Math.max(
     VIEWPORT_PAD,
-    Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - VIEWPORT_PAD)
+    Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - VIEWPORT_PAD),
   );
 
   return createPortal(
@@ -173,7 +173,7 @@ export function AnnotationPopover({
         </ul>
       )}
     </div>,
-    document.body
+    document.body,
   );
 }
 
@@ -183,7 +183,7 @@ export function AnnotationLegend({ results }: { results: GenomicFeature[] }) {
     const counts = new Map<string, number>();
     for (const f of results) {
       const featureSources = new Set(
-        parseAnnotations(f.functional_summary).map((source) => source.meta.key)
+        parseAnnotations(f.functional_summary).map((source) => source.meta.key),
       );
       for (const key of featureSources) counts.set(key, (counts.get(key) ?? 0) + 1);
     }

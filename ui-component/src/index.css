@@ -1,14 +1,24 @@
-@import './cvf-genomic-search.css';
+@import "./cvf-genomic-search.css";
 
 body.vf-body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  margin: 0;
+  margin: 0 auto;
 }
 
 #root {
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+}
+
+.cvf-demo-accession:focus-visible {
+  outline: 3px solid #007c82;
+  outline-offset: 2px;
+}
+
+/* The VF 2.5.28 desktop footer padding offsets its 100vw background layers. */
+.vf-footer {
+  padding-inline: 0;
 }
