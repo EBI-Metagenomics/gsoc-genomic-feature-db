@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Build and deployment output
+dist/
+.dist/
+build/
+storybook-static/
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/
+
+# Tool caches and generated metadata
+.cache/
+.vite/
+.vitest/
+.eslintcache
+*.tsbuildinfo
+
+# Generated dependency lockfiles
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Generated and minified assets
+*.generated.*
+*.min.css
+*.min.js
+*.map

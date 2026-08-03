@@ -1,11 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" class="vf-no-js | vf-smooth-scroll">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Genomic Search POC</title>
-  
-  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Genomic Feature Search</title>
+
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta http-equiv="Permissions-Policy" content="
     camera=(),
     microphone=(),
@@ -15,46 +16,50 @@
     magnetometer=(),
     gyroscope=(),
     accelerometer=()
-  ">
+  " />
 
   <!-- VF JS detection (swaps vf-no-js → vf-js) -->
   <script>
-  (function(H){H.className=H.className.replace(/\bvf-no-js\b/,'vf-js')})(document.documentElement);
+    (function (H) {
+      H.className = H.className.replace(/\bvf-no-js\b/, "vf-js");
+    })(document.documentElement);
   </script>
 
   <!-- VF CDN Stylesheet -->
-  <link rel="stylesheet" href="https://assets.emblstatic.net/vf/v2.5.28/css/styles.css">
+  <link rel="stylesheet" href="https://assets.emblstatic.net/vf/v2.5.28/css/styles.css" />
 
   <!-- EBI Header/Footer CSS -->
-  <link rel="stylesheet" href="https://assets.emblstatic.net/vf/v2/assets/ebi-header-footer/ebi-header-footer.css">
+  <link rel="stylesheet" href="https://assets.emblstatic.net/vf/v2/assets/ebi-header-footer/ebi-header-footer.css" />
 
   <!-- EBI Icon Fonts -->
-  <link rel="stylesheet" href="https://ebi.emblstatic.net/web_guidelines/EBI-Icon-fonts/v1.3/fonts.css">
+  <link rel="stylesheet" href="https://ebi.emblstatic.net/web_guidelines/EBI-Icon-fonts/v1.3/fonts.css" />
 
   <!-- EMBL Favicons (with crossorigin) -->
-  <link rel="shortcut icon" href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon.ico">
-  <link rel="apple-touch-icon" sizes="180x180" href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="32x32" href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon-32x32.png">
-  <link rel="icon" type="image/png" sizes="16x16" href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon-16x16.png">
+  <link rel="shortcut icon" href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180"
+    href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="32x32"
+    href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16"
+    href="https://assets.emblstatic.net/vf/v2.5.28/assets/embl-favicon/assets/favicon-16x16.png" />
 </head>
 
 <body class="vf-body | vf-stack">
   <!-- EMBL-EBI Global Header (loaded from ContentHub) -->
   <span data-protection-message-disable="true"></span>
-  <header id="masthead-black-bar" class="clearfix masthead-black-bar | ebi-header-footer vf-content vf-u-fullbleed"></header>
+  <header id="masthead-black-bar" class="clearfix masthead-black-bar | ebi-header-footer vf-content vf-u-fullbleed">
+  </header>
   <link rel="import"
-        href="https://www.embl.org/api/v1/pattern.html?filter-content-type=article&filter-id=6682&pattern=node-body&source=contenthub"
-        data-target="self"
-        data-embl-js-content-hub-loader>
+    href="https://www.embl.org/api/v1/pattern.html?filter-content-type=article&filter-id=6682&pattern=node-body&source=contenthub"
+    data-target="self" data-embl-js-content-hub-loader />
 
   <!-- React root -->
   <div id="root"></div>
 
   <!-- EMBL-EBI Global Footer (loaded from ContentHub) -->
   <link rel="import"
-        href="https://www.embl.org/api/v1/pattern.html?filter-content-type=article&filter-id=106902&pattern=node-body&source=contenthub"
-        data-target="self"
-        data-embl-js-content-hub-loader>
+    href="https://www.embl.org/api/v1/pattern.html?filter-content-type=article&filter-id=106902&pattern=node-body&source=contenthub"
+    data-target="self" data-embl-js-content-hub-loader />
   <div class="vf-u-display-none" data-protection-message-disable="true"></div>
 
   <!-- VF CDN JavaScript -->
@@ -66,4 +71,5 @@
   <!-- Vite React entry -->
   <script type="module" src="/src/main.tsx"></script>
 </body>
+
 </html>

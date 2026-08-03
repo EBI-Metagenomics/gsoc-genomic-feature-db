@@ -26,10 +26,10 @@ export const SOURCES: SourceMeta[] = [
 ];
 
 export const SOURCE_BY_KEY: Record<string, SourceMeta> = Object.fromEntries(
-  SOURCES.map((s) => [s.key, s])
+  SOURCES.map((s) => [s.key, s]),
 );
 export const SOURCE_ORDER: Record<string, number> = Object.fromEntries(
-  SOURCES.map((s, i) => [s.key, i])
+  SOURCES.map((s, i) => [s.key, i]),
 );
 
 // GFF attribute tag (lower-cased) → canonical source key. Related tags collapse

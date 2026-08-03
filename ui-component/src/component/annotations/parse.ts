@@ -2,12 +2,7 @@
 // the badge UI. The string format ("tag: v1, v2 | tag2: v3") is produced by
 // scripts/parser.py, so these delimiters must match that writer.
 
-import {
-  SOURCE_BY_KEY,
-  SOURCE_ORDER,
-  TAG_TO_SOURCE,
-  type SourceMeta,
-} from "./sources";
+import { SOURCE_BY_KEY, SOURCE_ORDER, TAG_TO_SOURCE, type SourceMeta } from "./sources";
 
 // Delimiters of the functional_summary wire format (see scripts/parser.py).
 const SEGMENT_SEP = " | "; // between "tag: values" segments
