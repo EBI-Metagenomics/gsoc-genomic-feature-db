@@ -55,17 +55,24 @@ export function buildMatchExpression(query: string, column?: string): string | n
   // Namespace:value segments are the exception: the namespace and any nested
   // namespace components are exact, while only the final value remains a prefix.
   // This avoids scans of common prefixes such as GeneID* and HGNC*.
-  const ftsQuery = query
+  // Treat optional whitespace after a namespace separator as part of the same
+  // lookup, so `GeneID: 4567` and `GeneID:4567` have identical semantics.
+  const normalisedQuery = query.replace(/([a-zA-Z][a-zA-Z0-9_.]*):\s+/g, "$1:");
+  const ftsQuery = normalisedQuery
     .trim()
     .split(/\s+/)
     .flatMap((segment) => {
       const namespaced = segment.match(NAMESPACED_TERM_RE);
       if (namespaced) {
         const namespaceTerms = sanitiseTerms(namespaced[1]);
+        const wildcardOnlyValue = /^\*+$/.test(namespaced[2].trim());
+        if (namespaceTerms.length === 1 && wildcardOnlyValue) {
+          // `GeneID:*` means any value in the exact GeneID namespace. The value
+          // itself is database-dependent, so no value token belongs in MATCH.
+          return [quoteTerm(namespaceTerms[0], false)];
+        }
         const valueParts = namespaced[2].split(":");
-        const intermediateTerms = valueParts
-          .slice(0, -1)
-          .flatMap((part) => sanitiseTerms(part));
+        const intermediateTerms = valueParts.slice(0, -1).flatMap((part) => sanitiseTerms(part));
         const valueTerms = sanitiseTerms(valueParts[valueParts.length - 1]);
         if (namespaceTerms.length === 1 && valueTerms.length > 0) {
           return [
