@@ -1,5 +1,5 @@
 {
-  "name": "genomic-search-poc",
+  "name": "genomic-feature-search",
   "private": true,
   "version": "0.1.0",
   "description": "Browser-based genomic feature search with an embedded JBrowse linear view",
@@ -9,11 +9,12 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
+    "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "preview": "vite preview",
-    "index": "python ../scripts/indexer.py ../sample_data/BU_ATCC8492_annotations.gff",
+    "index": "python ../scripts/indexer.py ../sample_data/MGYG000490722/MGYG000490722.gff.gz",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
