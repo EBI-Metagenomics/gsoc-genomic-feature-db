@@ -38,18 +38,9 @@ export default function App() {
   const dataset = DEMO_DATASETS[accession];
 
   return (
-    <main
-      className="vf-stack vf-stack--400"
-      style={{
-        width: "85%",
-        maxWidth: "100rem",
-        boxSizing: "border-box",
-        margin: "0 auto",
-        padding: "2rem 1rem",
-      }}
-    >
+    <main className="vf-stack vf-stack--400 cvf-app">
       <section style={{ width: "100%", textAlign: "center" }}>
-        <h1 className="vf-intro__heading">Genomic Feature Search</h1>
+        <h1 className="vf-intro__heading cvf-page-title">Genomic Feature Search</h1>
       </section>
       <AccessionSelector accessions={DEMO_ACCESSIONS} value={accession} onChange={setAccession} />
       <GenomicFeatureBrowser key={accession} dataset={dataset} />

@@ -20,7 +20,7 @@ interface SearchBarProps {
   hasMore: boolean;
   elapsed: number;
   search: (query: string) => Promise<void>;
-  loadMore: () => Promise<void>;
+  loadMore: () => Promise<number>;
 }
 
 export default function SearchBar({
@@ -36,7 +36,11 @@ export default function SearchBar({
   loadMore,
 }: SearchBarProps) {
   const [query, setQuery] = useState("");
+  const [paginationAnnouncement, setPaginationAnnouncement] = useState("");
+  const [focusResultIndex, setFocusResultIndex] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadMoreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const loadMoreRequestRef = useRef(0);
 
   // Single open-at-a-time annotation popover (see AnnotationBadges).
   const { popover, toggle: toggleAnnotation, close: closeAnnotation } = useAnnotationPopover();
@@ -51,6 +55,9 @@ export default function SearchBar({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       setQuery(val);
+      setPaginationAnnouncement("");
+      setFocusResultIndex(null);
+      loadMoreRequestRef.current += 1;
 
       if (timerRef.current) clearTimeout(timerRef.current);
 
@@ -71,11 +78,47 @@ export default function SearchBar({
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (timerRef.current) clearTimeout(timerRef.current);
+      setPaginationAnnouncement("");
+      setFocusResultIndex(null);
+      loadMoreRequestRef.current += 1;
       const val = query.trim();
       search(val.length >= MIN_QUERY_LENGTH ? query : "");
     },
     [query, search],
   );
+
+  const handleLoadMore = useCallback(() => {
+    const requestId = loadMoreRequestRef.current + 1;
+    const startIndex = results.length;
+    loadMoreRequestRef.current = requestId;
+    setFocusResultIndex(startIndex);
+    setPaginationAnnouncement("Loading more results.");
+
+    void loadMore().then(
+      (addedCount) => {
+        if (loadMoreRequestRef.current !== requestId) return;
+        if (addedCount > 0) {
+          setPaginationAnnouncement(
+            `${addedCount} more result${addedCount === 1 ? "" : "s"} loaded. ${startIndex + addedCount} results total.`,
+          );
+        } else {
+          setFocusResultIndex(null);
+          setPaginationAnnouncement("No additional results were loaded.");
+          loadMoreButtonRef.current?.focus();
+        }
+      },
+      () => {
+        if (loadMoreRequestRef.current !== requestId) return;
+        setFocusResultIndex(null);
+        setPaginationAnnouncement("More results could not be loaded.");
+        loadMoreButtonRef.current?.focus();
+      },
+    );
+  }, [loadMore, results.length]);
+
+  const handleResultFocusComplete = useCallback(() => {
+    setFocusResultIndex(null);
+  }, []);
 
   // Cleanup the pending debounce timer on unmount.
   useEffect(() => {
@@ -83,6 +126,8 @@ export default function SearchBar({
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  const resultMeta = `${results.length} result${results.length !== 1 ? "s" : ""} loaded in ${elapsed.toFixed(1)} ms`;
 
   return (
     <div className="vf-stack vf-stack--400">
@@ -97,7 +142,10 @@ export default function SearchBar({
       {/* Results meta */}
       {!loading && results.length > 0 && (
         <p className="cvf-search-meta">
-          {results.length} result{results.length !== 1 ? "s" : ""} loaded in {elapsed.toFixed(1)} ms
+          <span aria-hidden="true">{resultMeta}</span>
+          <span className="vf-u-sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {paginationAnnouncement || resultMeta}
+          </span>
         </p>
       )}
 
@@ -115,14 +163,18 @@ export default function SearchBar({
             onSelectFeature={onSelectFeature}
             openKey={popover?.key ?? null}
             onToggleAnnotation={toggleAnnotation}
+            focusResultIndex={focusResultIndex}
+            onResultFocusComplete={handleResultFocusComplete}
           />
           {hasMore && (
             <div style={{ display: "flex", justifyContent: "center" }}>
               <button
+                ref={loadMoreButtonRef}
                 type="button"
                 className="vf-button vf-button--secondary"
-                onClick={loadMore}
+                onClick={handleLoadMore}
                 disabled={loadingMore}
+                aria-busy={loadingMore}
               >
                 {loadingMore ? "Loading…" : "Load More"}
               </button>
@@ -137,6 +189,8 @@ export default function SearchBar({
         !searching &&
         results.length === 0 && (
           <p
+            role="status"
+            aria-live="polite"
             className="vf-text-body vf-u-text-color--grey"
             style={{ textAlign: "center", marginTop: "2rem" }}
           >

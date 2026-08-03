@@ -11,7 +11,8 @@ export interface UseDbSearchReturn {
   error: string | null;
   elapsed: number;
   search: (query: string) => Promise<void>;
-  loadMore: () => Promise<void>;
+  /** Load the next page and return the number of unique features appended. */
+  loadMore: () => Promise<number>;
 }
 
 export interface ActiveSearch {

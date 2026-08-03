@@ -4,6 +4,34 @@
   }
 }
 
+/* Use more of the viewport and slightly tighter vertical rhythm instead of
+   simulating browser zoom. Text and controls remain at accessible sizes, and
+   users retain full control of their browser's zoom setting. */
+.cvf-app {
+  width: 95%;
+  max-width: 110rem;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 1.25rem clamp(0.75rem, 1.5vw, 1.5rem) 1.5rem;
+}
+
+.cvf-app > * + * {
+  margin-top: 1rem;
+}
+
+.cvf-page-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: 1.15;
+}
+
+@media (max-width: 48rem) {
+  .cvf-app {
+    width: 100%;
+    padding: 0.75rem;
+  }
+}
+
 .cvf-search-spinner {
   display: inline-block;
   width: 18px;
@@ -30,7 +58,7 @@
 
 /* Muted dash shown when a feature carries no annotations. */
 .cvf-annotation-empty {
-  color: #9ca3af;
+  color: #4b5563;
 }
 
 /* A single source badge: a small square showing one letter (P, I, K, …). Inline
@@ -146,6 +174,46 @@
   border-radius: 4px;
 }
 
+/* Keep dense genomic result sets readable while fitting more columns in the
+   viewport. This is intentionally table-local: application and browser text
+   retain their normal Visual Framework sizing. */
+.cvf-results-table {
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.cvf-results-table .vf-table__heading,
+.cvf-results-table .vf-table__cell {
+  padding: 0.5rem 0.625rem;
+  vertical-align: top;
+}
+
+.cvf-results-table th:nth-child(1),
+.cvf-results-table td:nth-child(1),
+.cvf-results-table th:nth-child(2),
+.cvf-results-table td:nth-child(2),
+.cvf-results-table th:nth-child(3),
+.cvf-results-table td:nth-child(3),
+.cvf-results-table th:nth-child(4),
+.cvf-results-table td:nth-child(4),
+.cvf-results-table th:nth-child(5),
+.cvf-results-table td:nth-child(5),
+.cvf-results-table th:nth-child(6),
+.cvf-results-table td:nth-child(6) {
+  white-space: nowrap;
+}
+
+.cvf-results-table th:nth-child(7),
+.cvf-results-table td:nth-child(7) {
+  min-width: 12rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.cvf-results-table tbody tr {
+  scroll-margin-top: 3rem;
+}
+
 /* Keep the column headings visible while the results body scrolls. The wrapper is
    the scroll container (max-height + overflow:auto), so sticky positions the
    heading row against its top edge. A solid background stops body rows showing
@@ -173,18 +241,20 @@
 /* Gene symbol shown beneath the feature_id in column one. */
 .cvf-feature-gene {
   font-size: 0.8125rem;
-  color: #6b7280;
+  color: #4b5563;
 }
 
 /* Muted dash for an empty cell value (e.g. a missing biotype). */
 .cvf-empty {
-  color: #9ca3af;
+  color: #4b5563;
 }
 
 .cvf-feature-link {
   margin: 0;
   padding: 0;
   font-family: monospace;
+  font-size: 0.875rem;
+  line-height: 1.35;
   font-weight: 600;
   text-align: left;
 }

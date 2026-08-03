@@ -1,6 +1,8 @@
 // ResultsTable.tsx — renders the matched features as a sticky-header table, with
 // the Annotations column delegated to AnnotationCell.
 
+import { useEffect, useRef } from "react";
+
 import { RESULT_TABLE_HEADINGS, FEATURE_TYPE_BADGE_CLASS, DEFAULT_BADGE_CLASS } from "../config";
 import type { GenomicFeature } from "../types";
 import { AnnotationCell, type ParsedSource } from "./AnnotationBadges";
@@ -16,6 +18,8 @@ interface ResultsTableProps {
   onSelectFeature: (feature: GenomicFeature) => void;
   openKey: string | null;
   onToggleAnnotation: (key: string, source: ParsedSource, el: HTMLElement) => void;
+  focusResultIndex: number | null;
+  onResultFocusComplete: () => void;
 }
 
 export default function ResultsTable({
@@ -24,10 +28,25 @@ export default function ResultsTable({
   onSelectFeature,
   openKey,
   onToggleAnnotation,
+  focusResultIndex,
+  onResultFocusComplete,
 }: ResultsTableProps) {
+  const featureButtonRefs = useRef(new Map<number, HTMLButtonElement>());
+
+  useEffect(() => {
+    if (focusResultIndex === null) return;
+
+    const target = featureButtonRefs.current.get(focusResultIndex);
+    if (!target) return;
+
+    target.closest("tr")?.scrollIntoView({ block: "start", inline: "nearest" });
+    target.focus({ preventScroll: true });
+    onResultFocusComplete();
+  }, [focusResultIndex, onResultFocusComplete, results.length]);
+
   return (
     <div className="cvf-results-wrapper">
-      <table className="vf-table vf-table--striped">
+      <table className="vf-table vf-table--striped cvf-results-table">
         <thead>
           <tr>
             {RESULT_TABLE_HEADINGS.map((heading) => (
@@ -38,7 +57,7 @@ export default function ResultsTable({
           </tr>
         </thead>
         <tbody>
-          {results.map((f) => (
+          {results.map((f, index) => (
             <tr
               key={f.id}
               className={selectedFeature?.id === f.id ? "cvf-result--selected" : undefined}
@@ -48,6 +67,10 @@ export default function ResultsTable({
                     when it adds something beyond the id (matches the domain's
                     Locus-Tag-then-Gene convention). */}
                 <button
+                  ref={(node) => {
+                    if (node) featureButtonRefs.current.set(index, node);
+                    else featureButtonRefs.current.delete(index);
+                  }}
                   type="button"
                   className="vf-button vf-button--link cvf-feature-link"
                   aria-current={selectedFeature?.id === f.id ? "location" : undefined}
@@ -75,7 +98,6 @@ export default function ResultsTable({
                 {/* Often empty for prokaryotic data — show a muted dash, not a blank. */}
                 {f.biotype || <span className="cvf-empty">—</span>}
               </td>
-              <td className="vf-table__cell">{f.description}</td>
               <td className="vf-table__cell">
                 <AnnotationCell
                   summary={f.functional_summary}
@@ -84,6 +106,7 @@ export default function ResultsTable({
                   onToggle={onToggleAnnotation}
                 />
               </td>
+              <td className="vf-table__cell">{f.description}</td>
             </tr>
           ))}
         </tbody>

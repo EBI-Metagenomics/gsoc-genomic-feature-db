@@ -23,6 +23,7 @@ export type { UseDbSearchReturn } from "./dbSearchState";
 export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
   const workerRef = useRef<Comlink.Remote<WorkerApi> | null>(null);
   const activeSearchRef = useRef<ActiveSearch | null>(null);
+  const resultsRef = useRef<GenomicFeature[]>([]);
   const nextCursorRef = useRef<number | null>(null);
   const hasMoreRef = useRef(false);
   const loadMoreInFlightRef = useRef(false);
@@ -52,6 +53,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       nextCursorRef.current = null;
       hasMoreRef.current = false;
       loadMoreInFlightRef.current = false;
+      resultsRef.current = [];
       setResults([]);
       setLoading(true);
       setSearching(false);
@@ -88,6 +90,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
   const search = useCallback(async (query: string) => {
     const activeSearch = { query };
     activeSearchRef.current = activeSearch;
+    resultsRef.current = [];
     nextCursorRef.current = null;
     hasMoreRef.current = false;
     loadMoreInFlightRef.current = false;
@@ -107,6 +110,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     try {
       const page = await worker.searchPage(query);
       if (activeSearchRef.current !== activeSearch) return;
+      resultsRef.current = page.features;
       setResults(page.features);
       setElapsed(page.elapsed_ms);
       nextCursorRef.current = page.next_cursor;
@@ -115,6 +119,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     } catch (caught: unknown) {
       if (activeSearchRef.current !== activeSearch) return;
       setError(errorMessage(caught));
+      resultsRef.current = [];
       setResults([]);
       nextCursorRef.current = null;
       hasMoreRef.current = false;
@@ -124,7 +129,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     }
   }, []);
 
-  const loadMore = useCallback(async () => {
+  const loadMore = useCallback(async (): Promise<number> => {
     const worker = workerRef.current;
     const activeSearch = activeSearchRef.current;
     const cursor = nextCursorRef.current;
@@ -135,16 +140,20 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       !hasMoreRef.current ||
       loadMoreInFlightRef.current
     ) {
-      return;
+      return 0;
     }
 
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
+    let addedCount = 0;
     try {
       const page = await worker.searchPage(activeSearch.query, undefined, cursor);
-      if (activeSearchRef.current !== activeSearch) return;
-      setResults((current) => appendUniqueFeatures(current, page.features));
+      if (activeSearchRef.current !== activeSearch) return 0;
+      const nextResults = appendUniqueFeatures(resultsRef.current, page.features);
+      addedCount = nextResults.length - resultsRef.current.length;
+      resultsRef.current = nextResults;
+      setResults(nextResults);
       setElapsed((current) => current + page.elapsed_ms);
       nextCursorRef.current = page.next_cursor;
       hasMoreRef.current = page.has_more;
@@ -159,6 +168,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
         setLoadingMore(false);
       }
     }
+    return addedCount;
   }, []);
 
   return {
