@@ -4,7 +4,7 @@
 
 // Minimum characters before a search runs. Imported by the UI hook, the search
 // form, and the worker so the UI threshold and the engine threshold never drift.
-export const MIN_QUERY_LENGTH = 4;
+export const MIN_QUERY_LENGTH = 3;
 
 // Debounce window (ms) between keystroke and the search firing.
 export const DEBOUNCE_MS = 200;
@@ -41,8 +41,8 @@ export const RESULT_TABLE_HEADINGS = [
   "Position",
   "Strand",
   "Biotype",
-  "Description",
   "Annotations",
+  "Description",
 ] as const;
 
 // feature_type → EBI Visual Framework badge class. Types absent here use the base
