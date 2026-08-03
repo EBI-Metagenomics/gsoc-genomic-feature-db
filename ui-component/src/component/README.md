@@ -22,7 +22,7 @@ pieces it composes.
 ### 1. User interface & search input
 
 - **Debounced querying**: input is debounced by `DEBOUNCE_MS` (200 ms) and a search only
-  runs once the query reaches `MIN_QUERY_LENGTH` (4 characters). Both values live in
+  runs once the query reaches `MIN_QUERY_LENGTH` (3 characters). Both values live in
   `config.ts` and are shared with `useDbSearch` and `db.worker` so the thresholds never drift.
 - **All-fields search**: production searches feature IDs, names, biotypes,
   descriptions, and functional annotations together; there is no field dropdown.
@@ -78,6 +78,6 @@ interface SearchBarProps {
   hasMore: boolean; // Whether another page may exist
   elapsed: number; // Execution time of the last query in ms
   search: (query: string) => Promise<void>; // All-fields search trigger
-  loadMore: () => Promise<void>; // Append the next result page
+  loadMore: () => Promise<number>; // Append a page; return its unique-row count
 }
 ```

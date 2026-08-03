@@ -13,13 +13,17 @@ The system has two halves:
 | Half | Language | Purpose |
 |------|----------|---------|
 | **Backend indexer** (`scripts/`) | Python 3 (stdlib only) | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
-| **Frontend app** (`ui-component/`) | TypeScript / React / Vite | Load the database in the browser via a Web Worker + HTTP Range requests → provide millisecond search |
+| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view |
 
-There is **no server at runtime**. The database is a static file served alongside the frontend assets. All querying happens client-side in a Web Worker.
+There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
+TBI/CSI assets are served as static files. SQLite querying happens client-side in
+a Web Worker, while JBrowse reads the reference and annotations through byte-range
+requests.
 
 **Primary users:** Bioinformaticians and genomics researchers who need fast, interactive exploration of genomic annotations (gene names, biotypes, GO terms, Pfam domains, etc.).
 
-**Deployment target:** Static hosting (GitHub Pages, Vercel). Zero backend infrastructure.
+**Deployment target:** Any static host that preserves raw genomic bytes, supports
+HTTP ranges, and supplies appropriate CORS headers.
 
 ---
 
@@ -29,7 +33,7 @@ There is **no server at runtime**. The database is a static file served alongsid
   ┌─────────────────────────────────────────────────────────────────┐
   │  BUILD TIME (offline, one-shot)                                 │
   │                                                                 │
-  │  .gff.gz files ──▶ scripts/indexer.py ──▶ database/genomics.db.zip │
+  │  .gff.gz files ──▶ scripts/indexer.py ──▶ {gff-name}.db.zip        │
   │                     │                                           │
   │                     ├── parser.py      (GFF line parsing)       │
   │                     ├── models.py      (GenomicFeature dataclass)│
@@ -46,7 +50,7 @@ There is **no server at runtime**. The database is a static file served alongsid
   │    ├─ useDbSearch.ts  (worker lifecycle + paginated state)      │
   │    │    └─ db.worker.ts  (Comlink + SQLite HTTP VFS)            │
   │    │         ├─ fts.ts  (safe FTS5 MATCH builder)               │
-  │    │         └─ HTTP Range requests ──▶ genomics.db.zip         │
+  │    │         └─ HTTP Range requests ──▶ {accession}.db.zip      │
   │    └─ SearchBar.tsx  (all-fields query + Load More)             │
   │         ├─ SearchForm.tsx  (VF responsive search form)          │
   │         ├─ FeatureTypeFacets.tsx  (loaded-result counts)        │
@@ -57,11 +61,17 @@ There is **no server at runtime**. The database is a static file served alongsid
 
 ### Key Runtime Flow
 
-1. `useDbSearch` boots a Web Worker (`db.worker.ts`) on mount.
-2. The worker uses `sqlite-wasm-http` to open the remote `.db.zip` via HTTP VFS — only fetching database pages on demand (no full download).
-3. User types ≥ 4 chars → 200 ms debounce → worker executes `FTS5 MATCH` → the first 25 rows in stable `rowid` order return through Comlink.
-4. The table and feature-type facet render from those loaded rows. The facet is a display summary, not a separate database query or filter.
-5. **Load More** sends the last `rowid` as a cursor, appends the next 25 unique rows, and updates the facet counts.
+1. The host passes one `GenomicDataset` containing exact asset URLs.
+2. `useDbSearch` boots a URL-scoped Web Worker and opens `{accession}.db.zip`
+   through SQLite HTTP VFS.
+3. The embedded view configures `IndexedFastaAdapter` and `Gff3TabixAdapter`
+   against the same accession.
+4. User input of at least three characters executes an FTS5 prefix search and
+   returns keyset-paginated results.
+5. Selecting a feature converts its one-based GFF coordinates into a flanked
+   JBrowse location and navigates the existing view state.
+6. Changing accession disposes the old worker, results, selection, and JBrowse
+   view before activating the next dataset.
 
 ---
 
@@ -127,19 +137,26 @@ gsoc-genomic-feature-db/
 ├── ui-component/                      # React/Vite frontend
 │   ├── src/
 │   │   ├── config.ts                  # Central constants (single source of truth)
-│   │   ├── App.tsx                    # Root component (wires hook → SearchBar)
+│   │   ├── App.tsx                    # Demo registry and accession selector
 │   │   ├── main.tsx                   # React entry point
 │   │   ├── index.css                  # Global layout
 │   │   ├── cvf-genomic-search.css     # Search / badge / popover / table styles
+│   │   ├── types.ts                    # Dataset and component types
 │   │   │
 │   │   ├── hooks/
 │   │   │   └── useDbSearch.ts         # Worker lifecycle + search state
+│   │   │
+│   │   ├── jbrowse/
+│   │   │   ├── GenomicLinearView.tsx
+│   │   │   ├── config.ts              # Pure assembly and track builders
+│   │   │   └── navigation.ts          # GFF-to-JBrowse coordinates
 │   │   │
 │   │   ├── workers/
 │   │   │   ├── db.worker.ts           # SQLite WASM + HTTP VFS (Comlink)
 │   │   │   └── fts.ts                 # Pure FTS5 MATCH-expression builder
 │   │   │
 │   │   └── component/
+│   │       ├── GenomicFeatureBrowser.tsx
 │   │       ├── SearchBar.tsx          # Orchestrator (state + debounce)
 │   │       ├── SearchForm.tsx         # VF all-fields input + search button
 │   │       ├── FeatureTypeFacets.tsx  # Counts by type in loaded results
@@ -151,15 +168,17 @@ gsoc-genomic-feature-db/
 │   │           └── parse.ts           # functional_summary parser
 │   ├── index.html                      # React shell + VF/EBI CDN assets
 │   ├── package.json
-│   ├── STRUCTURE.md                    # Current frontend architecture reference
 │   ├── vite.config.ts
 │   ├── tsconfig.json
 │   └── tsconfig.app.json
 │
-├── database/                          # Generated SQLite database (served statically)
-│   └── genomics.db.zip
-│
-├── sample_data/                       # Test GFF files
+├── sample_data/                       # Local genomic runtime bundles
+│   └── MGYG000490722/
+│       ├── MGYG000490722.db.zip
+│       ├── MGYG000490722.fna
+│       ├── MGYG000490722.fna.fai
+│       ├── MGYG000490722.gff.gz
+│       └── MGYG000490722.gff.gz.tbi
 │
 ├── tests/                             # Python test suite (pytest)
 │   ├── conftest.py                    # Fixtures (builds test DB from sample GFF)
@@ -191,11 +210,11 @@ gsoc-genomic-feature-db/
 
 ```bash
 python scripts/indexer.py \
-  sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz \
-  -o database/genomics.db.zip
+  sample_data/MGYG000490722/MGYG000490722.gff.gz
 ```
 
-The generated database is saved to `database/` and served statically by Vite.
+This creates `sample_data/MGYG000490722/MGYG000490722.db.zip`. The suffix is an
+HTTP delivery name; the file contains raw SQLite bytes.
 
 **CLI options:** `--prefix` (pre-index 3/4-char prefixes), `--no-vacuum`, `--limit N`.
 
@@ -208,11 +227,26 @@ npm run dev
 # Open http://localhost:5173/
 ```
 
+The demo registry initially contains only `MGYG000490722`. Every registry entry
+must provide its own complete five-file runtime bundle.
+
 ### 3. Run Python Tests
 
 ```bash
 pip install pytest
 pytest tests/ -v
+```
+
+### 4. Run Frontend Validation
+
+```bash
+cd ui-component
+npm run typecheck
+npm run lint
+npm run format:check
+npm test
+npm run build
+npm run test:e2e
 ```
 
 ---
@@ -221,24 +255,23 @@ pytest tests/ -v
 
 ```
 App.tsx
-├── useDbSearch.ts           (hook: worker lifecycle, search state)
-│   └── db.worker.ts         (Web Worker: SQLite WASM + HTTP VFS + Comlink)
-│       └── fts.ts           (pure FTS5 MATCH builder)
-└── SearchBar.tsx            (debounced all-fields input, results table)
-    ├── SearchForm.tsx       (input row: input + button)
-    ├── FeatureTypeFacets.tsx  (display-only counts for loaded rows)
-    ├── ResultsTable.tsx     (sticky-header table; uses AnnotationCell)
-    └── AnnotationBadges.tsx (shared annotation presentation module)
-        ├── AnnotationCell   (per-row source badges)
-        ├── AnnotationLegend (source coverage in loaded rows)
-        ├── AnnotationPopover (values for the selected badge)
-        ├── annotations/sources.ts  (badge catalogue)
-        └── annotations/parse.ts    (functional_summary parser)
+└── GenomicFeatureBrowser
+    ├── useDbSearch.ts
+    │   └── db.worker.ts
+    │       └── fts.ts
+    ├── SearchBar.tsx
+    │   ├── SearchForm.tsx
+    │   ├── FeatureTypeFacets.tsx
+    │   ├── ResultsTable.tsx
+    │   └── AnnotationBadges.tsx
+    └── GenomicLinearView.tsx
+        ├── IndexedFastaAdapter
+        └── Gff3TabixAdapter
 ```
 
 ### Search Query Pipeline (Browser-Side)
 
-1. **Gate:** require ≥ 4 characters before touching the DB.
+1. **Gate:** require ≥ 3 characters before touching the DB.
 2. **Sanitise:** preserve usable letters, numbers, `_`, `.`, and identifier separators, then safely quote FTS terms.
 3. **Prefix match:** ordinary tokens become quoted prefix terms joined as implicit AND: `"dnaA"* "protein"*`. Namespaced IDs such as `GeneID:54998` and `HGNC:HGNC:1729` keep their namespace structure while prefix matching the final value.
 4. **All fields:** production searches the complete FTS index; there is no field dropdown.
@@ -342,10 +375,13 @@ npm install
 npm run build     # tsc -b && vite build
 ```
 
-### Deployment
+### Static hosting requirements
 
-- **GitHub Pages**: `npm run deploy` (uses `gh-pages` package).
-- **Vercel**: Auto-detected via `process.env.VERCEL` in `vite.config.ts` (sets `base: '/'`).
+- Serve `.db.zip`, `.fna`, and `.gff.gz` with byte-range support.
+- Serve `.gff.gz` as raw BGZF bytes without HTTP gzip transformation.
+- Configure CORS when assets and the application use different origins.
+- Load Visual Framework globally in the host; do not restyle JBrowse or Material
+  UI internals from component CSS.
 
 ---
 
