@@ -1,19 +1,58 @@
 name: CI
 
 on:
+  push:
+  pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  python:
+    name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v6
         with:
-          node-version: '20'
-          cache: 'npm'
+          python-version: ${{ matrix.python-version }}
 
-      - run: npm ci --legacy-peer-deps
+      - run: python -m pip install black==26.5.0 pytest==9.1.1 ruff==0.15.15
+      - if: matrix.python-version == '3.12'
+        run: black --check scripts tests
+      - if: matrix.python-version == '3.12'
+        run: ruff check scripts tests
+      - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui-component
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui-component/package-lock.json
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
       - run: npm run build
-      - run: npm test -- --passWithNoTests
