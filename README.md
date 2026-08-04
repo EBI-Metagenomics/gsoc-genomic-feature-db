@@ -69,9 +69,23 @@ HTTP ranges, and supplies appropriate CORS headers.
 4. User input of at least three characters executes an FTS5 prefix search and
    returns keyset-paginated results.
 5. Selecting a feature converts its one-based GFF coordinates into a flanked
-   JBrowse location and navigates the existing view state.
+   JBrowse location, replaces the native JBrowse highlight with the feature's
+   exact interval, and navigates the existing view state.
 6. Changing accession disposes the old worker, results, selection, and JBrowse
    view before activating the next dataset.
+
+### JBrowse selection highlights
+
+- Search results store one-based inclusive GFF coordinates. Navigation location
+  strings remain one-based, while the exact native JBrowse highlight converts
+  `[start, end]` to the zero-based half-open interval `[start - 1, end)`.
+- `setHighlight([highlight])` keeps one active selection, so choosing another
+  result replaces the previous highlight instead of accumulating bands.
+- The highlight intentionally has no explicit color. This lets JBrowse apply its
+  theme-aware translucent color; an opaque color would obscure the full track
+  area because native JBrowse interval highlights are full-height bands.
+- The band marks a genomic interval; it does not select or recolor an individual
+  rendered GFF feature glyph.
 
 ---
 
