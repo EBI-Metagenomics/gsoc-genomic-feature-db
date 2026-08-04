@@ -54,6 +54,10 @@ The components sit at the top of a local-first pipeline:
 4. **Result selection** — the stable feature ID is an explicit keyboard-accessible
    button. Selecting it sets `aria-current="location"`, calls the public callback,
    and sends the feature's one-based GFF coordinates to the existing JBrowse view.
+   The viewport includes the configured flank, while one translucent native JBrowse
+   highlight marks only the selected feature's exact interval. A later selection
+   replaces the earlier highlight. The highlight is a genomic interval band; it does
+   not programmatically select or recolor a particular GFF feature glyph.
    A dataset change clears the selection, terminates the previous worker, and
    recreates the accession-keyed JBrowse state.
 

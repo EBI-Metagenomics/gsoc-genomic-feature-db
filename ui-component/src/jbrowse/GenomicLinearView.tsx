@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GenomicDataset, GenomicFeature } from "../types";
 import { buildViewStateConfig } from "./config";
 import JBrowseErrorBoundary from "./JBrowseErrorBoundary";
-import { featureToLocation } from "./navigation";
+import { featureToHighlight, featureToLocation } from "./navigation";
 
 interface GenomicLinearViewProps {
   dataset: GenomicDataset;
@@ -47,6 +47,8 @@ function GenomicLinearViewInstance({
         const pendingFeature = pendingFeatureRef.current;
         if (!initialized || !pendingFeature) return;
         const location = featureToLocation(pendingFeature, navigationFlankBp);
+        const highlight = featureToHighlight(pendingFeature, dataset.accession);
+        viewState.session.view.setHighlight([highlight]);
         void viewState.session.view
           .navToLocString(location, dataset.accession)
           .then(() => {
@@ -76,6 +78,7 @@ function GenomicLinearViewInstance({
     navigatedLocation && navigatedLocation.featureId === selectedFeature?.id
       ? navigatedLocation.location
       : undefined;
+  const highlightedFeature = visibleLocation ? selectedFeature?.feature_id : undefined;
 
   return (
     <div
@@ -83,6 +86,7 @@ function GenomicLinearViewInstance({
       style={{ maxHeight }}
       data-accession={dataset.accession}
       data-visible-location={visibleLocation}
+      data-highlighted-feature={highlightedFeature}
     >
       {navigationError && navigationError.featureId === selectedFeature?.id && (
         <div className="cvf-jbrowse__error" role="alert">

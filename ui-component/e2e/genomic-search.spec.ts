@@ -2,6 +2,12 @@ import { expect, test } from "@playwright/test";
 
 import { accession, assetRoot, runtimeAssets } from "./dataset";
 
+const EXTERNAL_ASSET_HOSTS = new Set([
+  "assets.emblstatic.net",
+  "ebi.emblstatic.net",
+  "www.embl.org",
+]);
+
 test("searches the real database and navigates JBrowse with keyboard controls", async ({
   page,
 }) => {
@@ -11,7 +17,12 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
   const partialResponses = new Set<string>();
 
   page.on("console", (message) => {
-    if (message.type() === "error") browserErrors.push(message.text());
+    if (message.type() !== "error") return;
+
+    const sourceUrl = message.location().url;
+    if (sourceUrl && EXTERNAL_ASSET_HOSTS.has(new URL(sourceUrl).hostname)) return;
+
+    browserErrors.push(message.text());
   });
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("request", (request) => {
@@ -38,7 +49,7 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
   await searchInput.fill(`${accession}_00001`);
   await searchInput.press("Enter");
 
-  const featureLink = page.getByRole("button", {
+  const featureLink = page.locator(".cvf-results-table").getByRole("button", {
     name: `${accession}_00001`,
     exact: true,
   });
@@ -53,6 +64,29 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
     `${accession}_1:247..3660`,
     { timeout: 60_000 },
   );
+  await expect(page.locator(".cvf-jbrowse")).toHaveAttribute(
+    "data-highlighted-feature",
+    `${accession}_00001`,
+  );
+  const highlightButton = page.locator(".cvf-jbrowse").getByRole("button", {
+    name: `${accession}_00001`,
+    exact: true,
+  });
+  await expect(highlightButton).toBeVisible();
+  const highlightAlpha = await highlightButton.evaluate((button) => {
+    const view = button.ownerDocument.defaultView;
+    let element = button.parentElement;
+    while (element) {
+      const background = view?.getComputedStyle(element).backgroundColor ?? "";
+      const rgba = background.match(/^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/);
+      const alpha = rgba ? Number(rgba[1]) : 0;
+      if (alpha > 0) return alpha;
+      element = element.parentElement;
+    }
+    return 1;
+  });
+  expect(highlightAlpha).toBeGreaterThan(0);
+  expect(highlightAlpha).toBeLessThan(1);
 
   const zoomIn = page.getByLabel("Zoom in 2x");
   await zoomIn.click();

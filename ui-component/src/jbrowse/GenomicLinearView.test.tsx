@@ -11,6 +11,7 @@ interface MockViewState {
     view: {
       initialized: boolean;
       navToLocString: ReturnType<typeof vi.fn>;
+      setHighlight: ReturnType<typeof vi.fn>;
     };
   };
 }
@@ -35,6 +36,7 @@ vi.mock("@jbrowse/react-linear-genome-view2", async () => {
                 initialized.set(value);
               },
               navToLocString: vi.fn(async () => undefined),
+              setHighlight: vi.fn(),
             },
           },
         };
@@ -121,11 +123,58 @@ describe("GenomicLinearView", () => {
     await waitFor(() => {
       expect(state.session.view.navToLocString).toHaveBeenCalledWith("contig-1:450..650", "first");
     });
+    expect(state.session.view.setHighlight).toHaveBeenCalledWith([
+      {
+        refName: "contig-1",
+        start: 499,
+        end: 600,
+        assemblyName: "first",
+        label: "feature-1",
+      },
+    ]);
     expect(state.session.view.navToLocString).toHaveBeenCalledOnce();
     await waitFor(() => {
       expect(container.querySelector(".cvf-jbrowse")?.getAttribute("data-visible-location")).toBe(
         "contig-1:450..650",
       );
+    });
+  });
+
+  it("replaces the previous highlight when another result is selected", async () => {
+    const { rerender } = render(
+      <GenomicLinearView dataset={dataset} selectedFeature={selectedFeature} />,
+    );
+    const state = createdStates[createdStates.length - 1];
+
+    act(() => {
+      runInAction(() => {
+        state.session.view.initialized = true;
+      });
+    });
+
+    await waitFor(() => expect(state.session.view.setHighlight).toHaveBeenCalledTimes(1));
+
+    rerender(
+      <GenomicLinearView
+        dataset={dataset}
+        selectedFeature={{
+          ...selectedFeature,
+          id: 2,
+          feature_id: "feature-2",
+          start: 900,
+          end: 1_000,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(state.session.view.setHighlight).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          label: "feature-2",
+          start: 899,
+          end: 1_000,
+        }),
+      ]);
     });
   });
 });
