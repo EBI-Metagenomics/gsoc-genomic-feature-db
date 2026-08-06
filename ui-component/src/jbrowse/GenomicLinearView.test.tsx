@@ -177,4 +177,31 @@ describe("GenomicLinearView", () => {
       ]);
     });
   });
+
+  it("shows a clear error when the selected reference is unavailable", async () => {
+    const navigationError = new Error('Reference sequence "missing-contig" not found');
+    const onError = vi.fn();
+    const { findByRole } = render(
+      <GenomicLinearView
+        dataset={dataset}
+        selectedFeature={{ ...selectedFeature, seqid: "missing-contig" }}
+        onError={onError}
+      />,
+    );
+    const state = createdStates[createdStates.length - 1];
+    state.session.view.navToLocString.mockRejectedValueOnce(navigationError);
+
+    act(() => {
+      runInAction(() => {
+        state.session.view.initialized = true;
+      });
+    });
+
+    const alert = await findByRole("alert");
+    expect(alert.textContent).toContain(
+      'Could not navigate the genome browser: Reference sequence "missing-contig" not found',
+    );
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(navigationError);
+  });
 });

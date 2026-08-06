@@ -76,6 +76,10 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ### JBrowse selection highlights
 
+- Reference names use identity mapping: an indexed feature's `seqid` is passed
+  directly to JBrowse as its `refName`. Each dataset's GFF and FASTA files must
+  therefore use matching sequence names; if no matching reference exists,
+  navigation displays an accessible error message.
 - Search results store one-based inclusive GFF coordinates. Navigation location
   strings remain one-based, while the exact native JBrowse highlight converts
   `[start, end]` to the zero-based half-open interval `[start - 1, end)`.
