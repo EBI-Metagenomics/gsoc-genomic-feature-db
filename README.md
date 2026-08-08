@@ -222,7 +222,7 @@ gsoc-genomic-feature-db/
 ### Prerequisites
 
 - Python 3.10+ (no external packages needed for the indexer)
-- Node.js 20+ / npm
+- Node.js 22.x / npm
 
 ### 1. Generate the Database
 
@@ -240,13 +240,23 @@ HTTP delivery name; the file contains raw SQLite bytes.
 
 ```bash
 cd ui-component
-npm install
+npm ci
 npm run dev
 # Open http://localhost:5173/
 ```
 
 The demo registry initially contains only `MGYG000490722`. Every registry entry
 must provide its own complete five-file runtime bundle.
+
+The bundled demo and its browser-testing workflow are described in
+[the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
+dependencies match the committed lockfile, then install the Playwright browsers
+before running E2E tests:
+
+```powershell
+cd ui-component
+npx playwright install chromium firefox
+```
 
 ### 3. Run Python Tests
 
@@ -264,8 +274,17 @@ npm run lint
 npm run format:check
 npm test
 npm run build
+npm run test:e2e -- --project=chromium
+npm run test:e2e -- --project=firefox
 npm run test:e2e
 ```
+
+Chromium-based browsers and Firefox are the supported/tested browsers. CI runs
+the Chromium critical workflow; run Firefox locally before a release or after
+browser-sensitive UI changes. WebKit and the optional performance checks are
+local validation rather than merge gates. See [the User Guide](docs/USAGE.md)
+for the complete test scope, including the intentionally ignored external-CDN
+console errors in the E2E test.
 
 ---
 
@@ -405,11 +424,8 @@ npm run build     # tsc -b && vite build
 
 ## Contributing
 
-1. Install pre-commit hooks: `pre-commit install`
-2. Create a feature branch
-3. Make your changes (Black + Ruff for Python, strict TypeScript for frontend)
-4. Run tests: `pytest tests/ -v`
-5. Submit a pull request
+See the [Quick Start / Contributor Guide](<docs/QuickStartGuide/Contributor Guide.md>)
+for the setup, validation matrix, demo-data boundary, and pull-request workflow.
 
 ---
 

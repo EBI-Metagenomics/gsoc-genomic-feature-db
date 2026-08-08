@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "description": "Browser-based genomic feature search with an embedded JBrowse linear view",
   "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
