@@ -94,8 +94,8 @@ SELECT
 FROM search_fts f
 JOIN feature_meta m ON m.rowid = f.rowid
 WHERE search_fts MATCH ?
-ORDER BY rank
-LIMIT 25;
+ORDER BY f.rowid
+LIMIT 26;
 ```
 
 ### FTS5 Configuration
@@ -105,8 +105,12 @@ The FTS5 table is configured with specific options to minimize file size, which 
 * `content=''`: Makes the FTS table **contentless** — the inverted index stores only search tokens, not the original text. Display data comes from `feature_meta` via JOIN. This eliminates the `%_content` shadow table, saving ~40-50% of database size.
 * `tokenize='unicode61 tokenchars ''_.'''`: Ensures that text is tokenized correctly while ignoring case and basic punctuation. The `tokenchars` option treats underscores and periods as part of the token (not separators), so identifiers like `BU_ATCC8492` and `NC_012345.1` remain intact as single searchable tokens.
 * `detail=column`: Stores which column each token belongs to, enabling column-targeted queries (e.g., `name:BRCA1`, `biotype:protein_coding`). Phrase search is still not supported (that requires `detail=full`), but we don't need it since our search bar splits multi-word queries into individual prefix terms.
-* `columnsize=1`: Stores per-column byte lengths for BM25 ranking accuracy. This allows FTS5 to rank shorter, more relevant documents higher than long documents that incidentally contain the search term.
+* `columnsize=1`: Stores per-column byte lengths. The current production query does not use BM25; this setting is retained for schema compatibility until `detail=column, columnsize=0` is benchmarked independently.
 * `prefix='3 4'` (optional, enabled via `--prefix`): Pre-indexes 3 and 4-character prefixes for faster partial matching at the cost of larger file size.
+
+Production fetches one row beyond the 25-row display page. That lookahead row is
+not returned; it only determines whether another keyset page exists. See
+[`search-quality.md`](search-quality.md) for the query semantics and fixed tests.
 
 ### Why Two Tables?
 

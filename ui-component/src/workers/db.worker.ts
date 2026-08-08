@@ -4,6 +4,7 @@ import { createHttpBackend, initSyncSQLite } from "sqlite-wasm-http";
 import { HTTP_CACHE_SIZE, HTTP_MAX_PAGE_SIZE, SEARCH_PAGE_SIZE } from "../config";
 import type { GenomicFeature } from "../types";
 import { buildMatchExpression } from "./fts";
+import { boundSearchPage } from "./pagination";
 
 /** One rowid-ordered page returned from the search index. */
 export interface SearchPageResult {
@@ -71,15 +72,16 @@ function execSearch(query: string, column?: string, afterRowid?: number): Search
       LIMIT ?;
     `,
     hasCursor
-      ? [matchExpression, afterRowid, SEARCH_PAGE_SIZE]
-      : [matchExpression, SEARCH_PAGE_SIZE],
+      ? [matchExpression, afterRowid, SEARCH_PAGE_SIZE + 1]
+      : [matchExpression, SEARCH_PAGE_SIZE + 1],
   ) as GenomicFeature[];
+  const page = boundSearchPage(rows, SEARCH_PAGE_SIZE);
 
   return {
-    features: rows,
+    features: page.features,
     elapsed_ms: performance.now() - startedAt,
-    next_cursor: rows.length > 0 ? Number(rows[rows.length - 1].id) : null,
-    has_more: rows.length === SEARCH_PAGE_SIZE,
+    next_cursor: page.nextCursor,
+    has_more: page.hasMore,
   };
 }
 

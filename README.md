@@ -127,7 +127,7 @@ HTTP ranges, and supplies appropriate CORS headers.
 |---------|-------|-----|
 | `content` | `''` (contentless) | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size. |
 | `detail` | `column` | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`. |
-| `columnsize` | `1` | Enables BM25 length-aware ranking. Small cost, meaningful relevance improvement. |
+| `columnsize` | `1` | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
 | `tokenize` | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens. |
 
 ### Why Contentless + Two Tables?
@@ -202,12 +202,14 @@ gsoc-genomic-feature-db/
 │   ├── conftest.py                    # Fixtures (builds test DB from sample GFF)
 │   ├── test_database.py               # Database builder + verifier tests
 │   ├── test_indexer.py                # End-to-end indexer tests
-│   └── test_parser.py                 # GFF parser tests
+│   ├── test_parser.py                 # GFF parser tests
+│   └── test_search_quality.py         # Fixed demo-database search matrix
 │
 ├── docs/                              # Design documentation
 │   ├── schema-reference.md            # Full schema + FTS5 config docs
 │   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
 │   ├── advanced_column_search.md      # detail=column rationale
+│   ├── search-quality.md              # Search semantics, quality, and targets
 │   └── plan.md                        # GSoC timeline + WBS
 │
 ├── .github/workflows/ci.yml           # GitHub Actions CI
@@ -312,7 +314,12 @@ App.tsx
 2. **Sanitise:** preserve usable letters, numbers, `_`, `.`, and identifier separators, then safely quote FTS terms.
 3. **Prefix match:** ordinary tokens become quoted prefix terms joined as implicit AND: `"dnaA"* "protein"*`. Namespaced IDs such as `GeneID:54998` and `HGNC:HGNC:1729` keep their namespace structure while prefix matching the final value.
 4. **All fields:** production searches the complete FTS index; there is no field dropdown.
-5. **Pagination:** results use stable `rowid` ordering and 25-row keyset pages; **Load More** continues after the previous cursor instead of using SQL offsets.
+5. **Pagination:** results use stable `rowid` ordering and 25-row keyset pages; a one-row lookahead determines whether **Load More** is shown.
+6. **Counts:** the UI reports rows loaded and whether more are available; it does not run a global FTS count over HTTP VFS.
+
+See [Search Semantics, Quality, and Performance](docs/search-quality.md) for the
+fixed MGYG quality matrix, ranking decision, performance target, and known
+limitations.
 
 ### Feature-Type Facet
 
@@ -343,6 +350,7 @@ query and does not represent totals across every database match.
 | 7 | **`annotations` vs `functional_summary` split** | Single field for both | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars). |
 | 8 | **Prefix matching** over phrase search | FTS5 phrase queries | Multi-word queries split into individual prefix terms — more forgiving for genomic search. |
 | 9 | **Loaded-result feature-type facet** | A second aggregate DB query | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far. |
+| 10 | **Stable rowid ordering** | BM25 relevance sorting | Avoids scoring and sorting every broad match over HTTP VFS; fixed tests verify deterministic pages. |
 
 ---
 

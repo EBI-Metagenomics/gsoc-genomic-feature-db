@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import searchQualityFixture from "../test/search-quality-cases.json";
 import { buildMatchExpression } from "./fts";
 
 describe("buildMatchExpression", () => {
@@ -33,4 +34,11 @@ describe("buildMatchExpression", () => {
     expect(buildMatchExpression("kinase", "description")).toBe('description : ("kinase"*)');
     expect(buildMatchExpression("kinase", "description) OR feature_id")).toBe('"kinase"*');
   });
+
+  it.each(searchQualityFixture.cases)(
+    "builds the fixed MGYG expression for $id",
+    ({ query, column, match_expression }) => {
+      expect(buildMatchExpression(query, column ?? undefined)).toBe(match_expression);
+    },
+  );
 });

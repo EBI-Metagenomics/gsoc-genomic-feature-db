@@ -40,7 +40,9 @@ test("moves focus to the first newly loaded result without selecting it", async 
   const firstNewFeature = rows.nth(25).locator(".cvf-feature-link");
   await expect(firstNewFeature).toBeFocused();
   await expect(firstNewFeature).not.toHaveAttribute("aria-current", "location");
-  await expect(page.getByRole("status")).toContainText("25 more results loaded. 50 results total.");
+  await expect(page.getByRole("status")).toContainText(
+    "25 more results loaded. 50 results loaded.",
+  );
 
   const rowBox = await rows.nth(25).boundingBox();
   const wrapperBox = await page.locator(".cvf-results-wrapper").boundingBox();

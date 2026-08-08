@@ -26,8 +26,9 @@ pieces it composes.
   `config.ts` and are shared with `useDbSearch` and `db.worker` so the thresholds never drift.
 - **All-fields search**: production searches feature IDs, names, biotypes,
   descriptions, and functional annotations together; there is no field dropdown.
-- **Dynamic feedback**: loading spinner, query execution time (ms), result counts, and
-  error banners.
+- **Dynamic feedback**: loading spinner, query execution time (ms), rows loaded,
+  whether more results are available, and error banners. No global match total is
+  requested over HTTP VFS.
 - **Result visualization**: a table of `Feature ID` (the stable `feature_id`, with the
   gene symbol as a muted subtitle), `Type`, `Position`, `Strand`, `Biotype` (muted `—`
   when absent, common for prokaryotic data), `Description`, and `Annotations`.
