@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import { resolve, sep } from "node:path";
 
@@ -28,55 +29,70 @@ function byteRange(value: string | undefined, size: number): [number, number] | 
     : null;
 }
 
+function installSampleDataMiddleware(server: {
+  middlewares: {
+    use: (
+      handler: (
+        request: IncomingMessage,
+        response: ServerResponse,
+        next: (error?: unknown) => void,
+      ) => void | Promise<void>,
+    ) => void;
+  };
+}) {
+  server.middlewares.use(async (request, response, next) => {
+    const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+    if (!runtimePath.test(pathname)) {
+      next();
+      return;
+    }
+
+    const filePath = resolve(sampleRoot, `.${decodeURIComponent(pathname)}`);
+    if (!filePath.startsWith(`${resolve(sampleRoot)}${sep}`)) {
+      next();
+      return;
+    }
+
+    try {
+      const file = await stat(filePath);
+      if (!file.isFile()) {
+        next();
+        return;
+      }
+
+      const range = byteRange(request.headers.range, file.size);
+      const [start, end] = range ?? [0, file.size - 1];
+      response.statusCode = range ? 206 : 200;
+      response.setHeader("Accept-Ranges", "bytes");
+      response.setHeader("Access-Control-Allow-Origin", "*");
+      response.setHeader("Content-Length", end - start + 1);
+      response.setHeader("Content-Type", contentType(pathname));
+      if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
+
+      if (request.method === "HEAD") {
+        response.end();
+        return;
+      }
+      createReadStream(filePath, { start, end }).on("error", next).pipe(response);
+    } catch (error: unknown) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
+      if (code === "ENOENT") {
+        next();
+        return;
+      }
+      next(error);
+    }
+  });
+}
+
 export function sampleDataPlugin(): Plugin {
   return {
     name: "raw-range-sample-data",
-    apply: "serve",
     configureServer(server) {
-      server.middlewares.use(async (request, response, next) => {
-        const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
-        if (!runtimePath.test(pathname)) {
-          next();
-          return;
-        }
-
-        const filePath = resolve(sampleRoot, `.${decodeURIComponent(pathname)}`);
-        if (!filePath.startsWith(`${resolve(sampleRoot)}${sep}`)) {
-          next();
-          return;
-        }
-
-        try {
-          const file = await stat(filePath);
-          if (!file.isFile()) {
-            next();
-            return;
-          }
-
-          const range = byteRange(request.headers.range, file.size);
-          const [start, end] = range ?? [0, file.size - 1];
-          response.statusCode = range ? 206 : 200;
-          response.setHeader("Accept-Ranges", "bytes");
-          response.setHeader("Access-Control-Allow-Origin", "*");
-          response.setHeader("Content-Length", end - start + 1);
-          response.setHeader("Content-Type", contentType(pathname));
-          if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
-
-          if (request.method === "HEAD") {
-            response.end();
-            return;
-          }
-          createReadStream(filePath, { start, end }).on("error", next).pipe(response);
-        } catch (error: unknown) {
-          const code =
-            typeof error === "object" && error && "code" in error ? String(error.code) : "";
-          if (code === "ENOENT") {
-            next();
-            return;
-          }
-          next(error);
-        }
-      });
+      installSampleDataMiddleware(server);
+    },
+    configurePreviewServer(server) {
+      installSampleDataMiddleware(server);
     },
   };
 }
