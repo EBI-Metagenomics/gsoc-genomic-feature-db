@@ -64,13 +64,15 @@ HTTP ranges, and supplies appropriate CORS headers.
 1. The host passes one `GenomicDataset` containing exact asset URLs.
 2. `useDbSearch` boots a URL-scoped Web Worker and opens `{accession}.db.zip`
    through SQLite HTTP VFS.
-3. The embedded view configures `IndexedFastaAdapter` and `Gff3TabixAdapter`
-   against the same accession.
+3. The embedded view opens immediately at the dataset's small initial region
+   with reference and annotation tracks active. The indexed adapters request
+   only the FASTA/GFF ranges needed for that region.
 4. User input of at least three characters executes an FTS5 prefix search and
    returns keyset-paginated results.
-5. Selecting a feature converts its one-based GFF coordinates into a flanked
-   JBrowse location, replaces the native JBrowse highlight with the feature's
-   exact interval, and navigates the existing view state.
+5. A feature selection navigates the existing view state to the feature's
+   flanked location and requests any additional indexed data ranges needed
+   there. Every selection replaces the native JBrowse highlight with the
+   feature's exact interval while reusing the same tracks and view state.
 6. Changing accession disposes the old worker, results, selection, and JBrowse
    view before activating the next dataset.
 
@@ -190,7 +192,7 @@ gsoc-genomic-feature-db/
 │   ├── tsconfig.json
 │   └── tsconfig.app.json
 │
-├── sample_data/                       # Local genomic runtime bundles
+├── sample_data/                       # Local demo/test fixture; not production data
 │   └── MGYG000490722/
 │       ├── MGYG000490722.db.zip
 │       ├── MGYG000490722.fna
@@ -248,7 +250,8 @@ npm run dev
 ```
 
 The demo registry initially contains only `MGYG000490722`. Every registry entry
-must provide its own complete five-file runtime bundle.
+must provide its own complete five-file runtime bundle. `sample_data/` is a
+local fixture and is excluded from normal production builds.
 
 The bundled demo and its browser-testing workflow are described in
 [the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
@@ -259,6 +262,10 @@ before running E2E tests:
 cd ui-component
 npx playwright install chromium firefox
 ```
+
+The production data boundary, recommended EBI publication flow, range/CORS
+contract, and remaining EBI endpoint decisions are documented in
+[Production data integration](docs/production-data-integration.md).
 
 ### 3. Run Python Tests
 
@@ -380,17 +387,17 @@ query and does not represent totals across every database match.
 
 ## Tech Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| React | 18.3 | UI framework |
-| Vite | 5.4 | Dev server + bundler |
-| TypeScript | 5.5 | Type safety |
-| EMBL VF CDN | 2.5.28 | Global layout, form, button, table, badge, and error styling |
-| Custom CSS | - | Component-specific styling (`cvf-*`) |
-| `@sqlite.org/sqlite-wasm` | 3.51 | SQLite compiled to WASM |
-| `sqlite-wasm-http` | 1.2 | HTTP VFS — fetch DB pages via Range requests |
-| Comlink | 4.4 | Typed RPC between main thread and Web Worker |
-| Python (stdlib) | 3.10+ | Backend indexer (sqlite3, gzip, argparse, dataclasses) |
+| Technology                | Version | Purpose                                                      |
+| ------------------------- | ------- | ------------------------------------------------------------ |
+| React                     | 18.3    | UI framework                                                 |
+| Vite                      | 5.4     | Dev server + bundler                                         |
+| TypeScript                | 5.5     | Type safety                                                  |
+| EMBL VF CDN               | 2.5.28  | Global layout, form, button, table, badge, and error styling |
+| Custom CSS                | -       | Component-specific styling (`cvf-*`)                         |
+| `@sqlite.org/sqlite-wasm` | 3.51    | SQLite compiled to WASM                                      |
+| `sqlite-wasm-http`        | 1.2     | HTTP VFS — fetch DB pages via Range requests                 |
+| Comlink                   | 4.4     | Typed RPC between main thread and Web Worker                 |
+| Python (stdlib)           | 3.10+   | Backend indexer (sqlite3, gzip, argparse, dataclasses)       |
 
 ---
 
@@ -422,11 +429,17 @@ npm run build     # tsc -b && vite build
 
 ### Static hosting requirements
 
-- Serve `.db.zip`, `.fna`, and `.gff.gz` with byte-range support.
+- Serve `.db.zip`, `.fna`, `.fna.fai`, `.gff.gz`, and `.gff.gz.tbi`/`.csi`
+  with byte-range support. Large database, FASTA, and BGZF GFF files are read
+  on demand; their small indexes may be fetched in full by the client.
 - Serve `.gff.gz` as raw BGZF bytes without HTTP gzip transformation.
 - Configure CORS when assets and the application use different origins.
 - Load Visual Framework globally in the host; do not restyle JBrowse or Material
   UI internals from component CSS.
+
+The normal `npm run build` excludes `sample_data/`. Use `npm run build:demo`
+only for a self-contained demonstration; production should supply approved EBI
+HTTPS asset URLs through `GenomicDataset`.
 
 ---
 
@@ -439,13 +452,13 @@ for the setup, validation matrix, demo-data boundary, and pull-request workflow.
 
 ## GSoC Timeline
 
-| Date | Milestone |
-|------|-----------|
-| May 25, 2026 | Project Work Period Start |
-| Jul 6–10, 2026 | Midterm Evaluation |
-| Aug 17–24, 2026 | Final Submission |
-| Aug 24–31, 2026 | Final Evaluation |
-| Nov 9, 2026 | Project Completion Date |
+| Date            | Milestone                 |
+| --------------- | ------------------------- |
+| May 25, 2026    | Project Work Period Start |
+| Jul 6–10, 2026  | Midterm Evaluation        |
+| Aug 17–24, 2026 | Final Submission          |
+| Aug 24–31, 2026 | Final Evaluation          |
+| Nov 9, 2026     | Project Completion Date   |
 
 ---
 

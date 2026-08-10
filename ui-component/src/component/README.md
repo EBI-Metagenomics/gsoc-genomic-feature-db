@@ -55,10 +55,13 @@ The components sit at the top of a local-first pipeline:
 4. **Result selection** — the stable feature ID is an explicit keyboard-accessible
    button. Selecting it sets `aria-current="location"`, calls the public callback,
    and sends the feature's one-based GFF coordinates to the existing JBrowse view.
-   The viewport includes the configured flank, while one translucent native JBrowse
+   JBrowse initially shows reference and annotation tracks for a small indexed
+   region, so it can display useful features without reading the whole GFF. The
+   viewport includes the configured flank, while one translucent native JBrowse
    highlight marks only the selected feature's exact interval. A later selection
-   replaces the earlier highlight. The highlight is a genomic interval band; it does
-   not programmatically select or recolor a particular GFF feature glyph.
+   reuses the same view and tracks, fetches any newly required ranges, and replaces
+   the earlier highlight. The highlight is a genomic interval band; it does not
+   programmatically select or recolor a particular GFF feature glyph.
    A dataset change clears the selection, terminates the previous worker, and
    recreates the accession-keyed JBrowse state.
 
@@ -69,6 +72,8 @@ entry and displays it automatically when two or more entries are registered.
 To test switching, add a complete five-file runtime bundle under
 `sample_data/<accession>/`, then add the matching URLs and initial location to
 `src/demo/datasets.ts`. Restart the Vite server after adding filesystem assets.
+This registry and directory are local demonstration fixtures; production hosts
+should pass approved external URLs through the `GenomicDataset` prop.
 
 ## Props
 
