@@ -75,7 +75,7 @@ jobs:
 
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e -- e2e/genomic-search.spec.ts --project=chromium
+      - run: npm run test:e2e -- e2e/genomic-search.spec.ts e2e/range-delivery.spec.ts --project=chromium
 
       - name: Upload Playwright failure artifacts
         if: failure()
