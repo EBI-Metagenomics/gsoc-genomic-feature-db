@@ -86,6 +86,7 @@ describe("GenomicLinearView", () => {
     expect(wrapper?.style.maxHeight).toBe("500px");
     expect(wrapper?.style.height).toBe("");
     expect(wrapper?.style.minHeight).toBe("");
+    expect(wrapper?.dataset.annotationTrackActive).toBe("true");
   });
 
   it("recreates view state when the accession changes", () => {
@@ -137,6 +138,9 @@ describe("GenomicLinearView", () => {
       expect(container.querySelector(".cvf-jbrowse")?.getAttribute("data-visible-location")).toBe(
         "contig-1:450..650",
       );
+      expect(
+        container.querySelector(".cvf-jbrowse")?.getAttribute("data-annotation-track-active"),
+      ).toBe("true");
     });
   });
 

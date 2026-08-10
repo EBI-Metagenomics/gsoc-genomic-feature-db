@@ -28,7 +28,7 @@ export function buildAssembly(dataset: GenomicDataset) {
   };
 }
 
-/** Build the visible GFF3 tabix feature track for one dataset. */
+/** Build the indexed GFF3 feature track for one dataset. */
 export function buildAnnotationTrack(dataset: GenomicDataset) {
   return {
     type: "FeatureTrack" as const,
@@ -47,7 +47,7 @@ export function buildAnnotationTrack(dataset: GenomicDataset) {
   };
 }
 
-/** Build the initial single-view session with reference and annotations visible. */
+/** Build a small initial session with reference and indexed annotations visible. */
 export function buildInitialSession(dataset: GenomicDataset) {
   const location = dataset.initialLocation ? { loc: dataset.initialLocation } : {};
   return {

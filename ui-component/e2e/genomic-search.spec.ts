@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { accession, assetRoot, runtimeAssets } from "./dataset";
+import { accession, assetRoot, rangedViewAssets, runtimeAssets } from "./dataset";
 
 const EXTERNAL_ASSET_HOSTS = new Set([
   "assets.emblstatic.net",
@@ -43,6 +43,10 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
 
   const searchInput = page.getByRole("searchbox", { name: "Search genomic features" });
   await expect(searchInput).toBeEnabled({ timeout: 60_000 });
+  const genomeBrowser = page.locator(".cvf-jbrowse");
+  await expect(genomeBrowser).toHaveAttribute("data-annotation-track-active", "true");
+  await expect.poll(() => datasetRequests.has(runtimeAssets.gff)).toBe(true);
+  await expect.poll(() => datasetRequests.has(runtimeAssets.gffIndex)).toBe(true);
   await searchInput.focus();
   await expect(searchInput).toBeFocused();
 
@@ -68,6 +72,7 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
     "data-highlighted-feature",
     `${accession}_00001`,
   );
+  await expect(genomeBrowser).toHaveAttribute("data-annotation-track-active", "true");
   const highlightButton = page.locator(".cvf-jbrowse").getByRole("button", {
     name: `${accession}_00001`,
     exact: true,
@@ -94,10 +99,10 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
   await zoomIn.click();
 
   await expect
-    .poll(() => Object.values(runtimeAssets).every((path) => rangedRequests.has(path)))
+    .poll(() => Object.values(rangedViewAssets).every((path) => rangedRequests.has(path)))
     .toBe(true);
   await expect
-    .poll(() => Object.values(runtimeAssets).every((path) => partialResponses.has(path)))
+    .poll(() => Object.values(rangedViewAssets).every((path) => partialResponses.has(path)))
     .toBe(true);
 
   expect([...datasetRequests].every((path) => path.startsWith(assetRoot))).toBe(true);
