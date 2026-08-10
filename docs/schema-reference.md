@@ -17,8 +17,8 @@ During the indexing phase, raw GFF lines are parsed and validated by the parser'
 * `strand` (string): Indicates the strand the feature is located on. It is usually '+', '-', or '.' for unstranded features.
 * `biotype` (string): A more specific classification of the feature, such as protein_coding or lncRNA.
 * `description` (string): A general text description or product name associated with the feature.
-* `annotations` (string, optional): A consolidated string containing high-value functional tags (like GO terms, Pfam domains, or aliases) extracted from the raw GFF attributes. This is indexed for search but **not stored** in the display table.
-* `functional_summary` (string, optional): A compact version of annotations (max 300 characters, max 3 values per tag) intended for display in the UI results table.
+* `annotations` (string, optional): A consolidated string containing configured functional tags (such as GO terms, Pfam domains, or aliases) extracted from the raw GFF attributes. It keeps up to 50 values and 2,000 characters per tag, excludes values already represented in identity/display fields, and is indexed for search but **not stored** in the display table.
+* `functional_summary` (string, optional): A UI-oriented, source-grouped representation of the configured functional tags. It keeps up to 50 values and 2,000 characters per tag, with no global cap across tags, so the UI can render source badges and show their values in popovers.
 
 ## SQLite Database Schema
 
@@ -72,7 +72,7 @@ These columns are fully indexed for text search. Any word present in these field
 * `name`: The primary target for gene or feature name searches.
 * `biotype`: Included in the index to allow filtering by specific biological classifications.
 * `description`: Indexed to allow users to search for keywords within the product description.
-* `annotations`: Indexed so that users can search for functional terms, database cross-references, or alternative aliases. This is the **full** annotation text, not truncated.
+* `annotations`: Indexed so that users can search for functional terms, database cross-references, or alternative aliases. It is limited to 50 values and 2,000 characters per tag to bound pathological rows.
 
 #### Rowid Synchronization
 

@@ -10,10 +10,10 @@
 
 The system has two halves:
 
-| Half | Language | Purpose |
-|------|----------|---------|
-| **Backend indexer** (`scripts/`) | Python 3 (stdlib only) | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
-| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view |
+| Half                                | Language                  | Purpose                                                                                                                   |
+| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Backend indexer** (`scripts/`)    | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
+| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view                          |
 
 There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
 TBI/CSI assets are served as static files. SQLite querying happens client-side in
@@ -99,43 +99,43 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ### `feature_meta` — regular SQLite table (display data)
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `rowid` | INTEGER PK | Shared rowid for JOIN |
-| `feature_id` | TEXT | Unique feature identifier |
-| `name` | TEXT | Gene/feature name |
-| `feature_type` | TEXT | Biological type (gene, mRNA, CDS, exon…) |
-| `seqid` | TEXT | Chromosome / contig |
-| `start` | INTEGER | 1-based start coordinate |
-| `end` | INTEGER | 1-based end coordinate |
-| `strand` | TEXT | `+`, `-`, or `.` |
-| `biotype` | TEXT | Classification (protein_coding, lncRNA…) |
-| `description` | TEXT | Product / description text |
-| `functional_summary` | TEXT | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
+| Column               | Type       | Purpose                                                                  |
+| -------------------- | ---------- | ------------------------------------------------------------------------ |
+| `rowid`              | INTEGER PK | Shared rowid for JOIN                                                    |
+| `feature_id`         | TEXT       | Unique feature identifier                                                |
+| `name`               | TEXT       | Gene/feature name                                                        |
+| `feature_type`       | TEXT       | Biological type (gene, mRNA, CDS, exon…)                                 |
+| `seqid`              | TEXT       | Chromosome / contig                                                      |
+| `start`              | INTEGER    | 1-based start coordinate                                                 |
+| `end`                | INTEGER    | 1-based end coordinate                                                   |
+| `strand`             | TEXT       | `+`, `-`, or `.`                                                         |
+| `biotype`            | TEXT       | Classification (protein_coding, lncRNA…)                                 |
+| `description`        | TEXT       | Product / description text                                               |
+| `functional_summary` | TEXT       | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
 
 ### `search_fts` — contentless FTS5 virtual table (search index)
 
-| Column | Indexed | Purpose |
-|--------|---------|---------|
-| `feature_id` | ✅ | Identifier search |
-| `name` | ✅ | Gene name search |
-| `biotype` | ✅ | Column-targeted filtering (`biotype:protein_coding`) |
-| `description` | ✅ | Keyword search in descriptions |
-| `annotations` | ✅ | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
+| Column        | Indexed | Purpose                                                                                                          |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| `feature_id`  | ✅      | Identifier search                                                                                                |
+| `name`        | ✅      | Gene name search                                                                                                 |
+| `biotype`     | ✅      | Column-targeted filtering (`biotype:protein_coding`)                                                             |
+| `description` | ✅      | Keyword search in descriptions                                                                                   |
+| `annotations` | ✅      | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
 
 ### FTS5 Configuration Rationale
 
-| Setting | Value | Why |
-|---------|-------|-----|
-| `content` | `''` (contentless) | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size. |
-| `detail` | `column` | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`. |
-| `columnsize` | `1` | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
-| `tokenize` | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens. |
+| Setting      | Value                       | Why                                                                                               |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `content`    | `''` (contentless)          | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size.        |
+| `detail`     | `column`                    | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`.                 |
+| `columnsize` | `1`                         | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
+| `tokenize`   | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens.                          |
 
 ### Why Contentless + Two Tables?
 
 - **5–6× smaller** than pure FTS5 with zero loss in search accuracy.
-- `annotations` (the longest field) is indexed for search but never stored — only the shorter `functional_summary` is stored for UI display.
+- `annotations` is indexed for search but never stored as FTS text. `functional_summary` is stored separately for UI badges and popovers; both retain up to 50 values and 2,000 characters per configured tag, while the search field omits values duplicated in identity/display fields.
 - The pipeline is **write-once** (rebuild from GFF files), so DELETE/UPDATE limitations of contentless FTS are irrelevant.
 
 ---
@@ -346,18 +346,18 @@ query and does not represent totals across every database match.
 
 ## Key Design Decisions
 
-| # | Decision | Alternatives Considered | Rationale |
-|---|----------|------------------------|-----------|
-| 1 | **Contentless FTS5** | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size. |
-| 2 | **`detail=column` retained in the current DB** | `detail=none`, `detail=full` | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
-| 3 | **Two-table design** | Single FTS5 table | Separate display (native types, `functional_summary`) from search (FTS only). |
-| 4 | **HTTP VFS (Range requests)** | Download entire DB upfront | On-demand page fetching — only query-touched pages are fetched. |
-| 5 | **Web Worker + Comlink** | Main-thread SQLite | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI. |
-| 6 | **Python stdlib only** | pandas, BioPython | Zero external dependencies = easier onboarding, reproducibility, CI. |
-| 7 | **`annotations` vs `functional_summary` split** | Single field for both | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars). |
-| 8 | **Prefix matching** over phrase search | FTS5 phrase queries | Multi-word queries split into individual prefix terms — more forgiving for genomic search. |
-| 9 | **Loaded-result feature-type facet** | A second aggregate DB query | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far. |
-| 10 | **Stable rowid ordering** | BM25 relevance sorting | Avoids scoring and sorting every broad match over HTTP VFS; fixed tests verify deterministic pages. |
+| #   | Decision                                        | Alternatives Considered          | Rationale                                                                                                                                |
+| --- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Contentless FTS5**                            | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size.                                                                         |
+| 2   | **`detail=column` retained in the current DB**  | `detail=none`, `detail=full`     | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
+| 3   | **Two-table design**                            | Single FTS5 table                | Separate display (native types, `functional_summary`) from search (FTS only).                                                            |
+| 4   | **HTTP VFS (Range requests)**                   | Download entire DB upfront       | On-demand page fetching — only query-touched pages are fetched.                                                                          |
+| 5   | **Web Worker + Comlink**                        | Main-thread SQLite               | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI.                                                              |
+| 6   | **Python stdlib only**                          | pandas, BioPython                | Zero external dependencies = easier onboarding, reproducibility, CI.                                                                     |
+| 7   | **`annotations` vs `functional_summary` split** | Single field for both            | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars).   |
+| 8   | **Prefix matching** over phrase search          | FTS5 phrase queries              | Multi-word queries split into individual prefix terms — more forgiving for genomic search.                                               |
+| 9   | **Loaded-result feature-type facet**            | A second aggregate DB query      | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far.                  |
+| 10  | **Stable rowid ordering**                       | BM25 relevance sorting           | Avoids scoring and sorting every broad match over HTTP VFS; fixed tests verify deterministic pages.                                      |
 
 ---
 
@@ -365,15 +365,15 @@ query and does not represent totals across every database match.
 
 ### Modules
 
-| File | Role |
-|------|------|
-| [`indexer.py`](scripts/indexer.py) | CLI entry point. Coordinates parsing → insertion → verification → optimisation. |
-| [`parser.py`](scripts/parser.py) | `GFFParser` class. Reads `.gff`/`.gff.gz`, parses attributes, builds annotations, filters low-value features. |
-| [`database.py`](scripts/database.py) | `DatabaseBuilder` (schema + PRAGMAs), `FeatureRepository` (batch insert + optimise), `DatabaseVerifier` (7-check integrity suite). |
-| [`models.py`](scripts/models.py) | `GenomicFeature` dataclass with typed fields and tuple conversion. |
-| [`config.py`](scripts/config.py) | All constants: `BATCH_SIZE`, `LOW_VALUE_TYPES`, `FUNCTIONAL_TAGS`, `DESCRIPTION_KEYS`, `NAME_KEYS`, `ID_KEYS`, `BIOTYPE_KEYS`, SQLite PRAGMAs. |
-| [`utils.py`](scripts/utils.py) | Logger factory, DB size helper. |
-| [`verify_schema.py`](scripts/verify_schema.py) | Standalone verification script for manual DB inspection. |
+| File                                           | Role                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`indexer.py`](scripts/indexer.py)             | CLI entry point. Coordinates parsing → insertion → verification → optimisation.                                                                |
+| [`parser.py`](scripts/parser.py)               | `GFFParser` class. Reads `.gff`/`.gff.gz`, parses attributes, builds annotations, filters low-value features.                                  |
+| [`database.py`](scripts/database.py)           | `DatabaseBuilder` (schema + PRAGMAs), `FeatureRepository` (batch insert + optimise), `DatabaseVerifier` (7-check integrity suite).             |
+| [`models.py`](scripts/models.py)               | `GenomicFeature` dataclass with typed fields and tuple conversion.                                                                             |
+| [`config.py`](scripts/config.py)               | All constants: `BATCH_SIZE`, `LOW_VALUE_TYPES`, `FUNCTIONAL_TAGS`, `DESCRIPTION_KEYS`, `NAME_KEYS`, `ID_KEYS`, `BIOTYPE_KEYS`, SQLite PRAGMAs. |
+| [`utils.py`](scripts/utils.py)                 | Logger factory, DB size helper.                                                                                                                |
+| [`verify_schema.py`](scripts/verify_schema.py) | Standalone verification script for manual DB inspection.                                                                                       |
 
 ### Key Behaviours
 

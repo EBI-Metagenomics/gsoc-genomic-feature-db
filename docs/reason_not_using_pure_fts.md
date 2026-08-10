@@ -221,7 +221,7 @@ functional_summary      ✅ "pfam: PF00308 | ..."   ❌ not searchable
 annotations             ❌ not stored              ✅ tokens: [pfam, pf00308, go, 0003677, ...]
 ```
 
-Notice `annotations` — the longest field with all the Pfam, GO, KEGG, InterPro terms — is **searchable but never stored as text**. Only the shorter `functional_summary` is stored for display. This is the biggest space saving.
+Notice `annotations` — the search-oriented field with Pfam, GO, KEGG, InterPro, and related terms — is **searchable but never stored as text**. `functional_summary` is stored separately for display so the UI can group values into source badges and popovers. Both are bounded to 50 values and 2,000 characters per tag; the search field additionally omits values duplicated in identity/display fields. Avoiding storage of the FTS content is the space saving.
 
 ---
 
