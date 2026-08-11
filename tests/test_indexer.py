@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from conftest import SAMPLE_GFF
+from config import GENERATOR_VERSION, SCHEMA_VERSION
 from indexer import build_database, default_output_path
 
 SCRIPT_DIR = Path(__file__).parent.parent / "scripts"
@@ -100,6 +101,11 @@ class TestCLI:
         assert result.returncode == 0
         assert db.exists()
         assert db.stat().st_size > 0
+        with sqlite3.connect(db) as conn:
+            metadata = conn.execute(
+                "SELECT schema_version, generator_version FROM database_metadata"
+            ).fetchone()
+        assert metadata == (SCHEMA_VERSION, GENERATOR_VERSION)
 
     @pytest.mark.parametrize(
         ("filename", "expected"),

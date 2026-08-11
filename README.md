@@ -95,20 +95,20 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ---
 
-## Database Design (Two-Table Architecture)
+## Database Design (Versioned Two-Table Search Architecture)
 
 ### `feature_meta` — regular SQLite table (display data)
 
 | Column               | Type       | Purpose                                                                  |
 | -------------------- | ---------- | ------------------------------------------------------------------------ |
 | `rowid`              | INTEGER PK | Shared rowid for JOIN                                                    |
-| `feature_id`         | TEXT       | Unique feature identifier                                                |
+| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity        |
 | `name`               | TEXT       | Gene/feature name                                                        |
 | `feature_type`       | TEXT       | Biological type (gene, mRNA, CDS, exon…)                                 |
 | `seqid`              | TEXT       | Chromosome / contig                                                      |
 | `start`              | INTEGER    | 1-based start coordinate                                                 |
 | `end`                | INTEGER    | 1-based end coordinate                                                   |
-| `strand`             | TEXT       | `+`, `-`, or `.`                                                         |
+| `strand`             | TEXT       | `+`, `-`, `.`, or `?`                                                    |
 | `biotype`            | TEXT       | Classification (protein_coding, lncRNA…)                                 |
 | `description`        | TEXT       | Product / description text                                               |
 | `functional_summary` | TEXT       | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
@@ -122,6 +122,14 @@ HTTP ranges, and supplies appropriate CORS headers.
 | `biotype`     | ✅      | Column-targeted filtering (`biotype:protein_coding`)                                                             |
 | `description` | ✅      | Keyword search in descriptions                                                                                   |
 | `annotations` | ✅      | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
+
+### `database_metadata` — schema compatibility
+
+Every generated database contains exactly one `database_metadata` row with a
+numeric schema version and an indexer generator version. The browser validates
+this row before querying feature data and rejects incompatible artifacts with a
+clear initialization error. See [the schema reference](docs/schema-reference.md)
+for the complete data contract and rebuild-based compatibility policy.
 
 ### FTS5 Configuration Rationale
 

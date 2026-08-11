@@ -86,6 +86,12 @@ should be atomic: upload versioned files first, validate them, then expose the
 new manifest entry. Immutable/versioned URLs are preferred so a database is
 never combined with stale FASTA or GFF indexes.
 
+The browser also validates the SQLite `database_metadata.schema_version` before
+querying features. Schema changes are deployed by regenerating the immutable
+database rather than migrating it in place. Publish a compatible browser and
+database bundle together; an older or unversioned database is rejected with a
+clear initialization error.
+
 ## HTTP range and CORS contract
 
 The data service must support `GET`, `HEAD`, and single byte-range requests. A

@@ -5,6 +5,7 @@ import { HTTP_CACHE_SIZE, HTTP_MAX_PAGE_SIZE, SEARCH_PAGE_SIZE } from "../config
 import type { GenomicFeature } from "../types";
 import { buildMatchExpression } from "./fts";
 import { boundSearchPage } from "./pagination";
+import { readAndValidateSchemaMetadata } from "./schema";
 
 /** One rowid-ordered page returned from the search index. */
 export interface SearchPageResult {
@@ -109,6 +110,7 @@ const workerApi = {
   },
 
   async initFromUrl(url: string): Promise<string> {
+    database = null;
     httpBackend = createHttpBackend({
       maxPageSize: HTTP_MAX_PAGE_SIZE,
       cacheSize: HTTP_CACHE_SIZE,
@@ -117,13 +119,15 @@ const workerApi = {
     const sqlite = (await initSyncSQLite({
       http: httpBackend,
     })) as unknown as SqliteModule;
-    database = new sqlite.oo1.DB({
+    const candidateDatabase = new sqlite.oo1.DB({
       filename: `file:${encodeURI(url)}`,
       vfs: "http",
     });
+    const metadata = readAndValidateSchemaMetadata(candidateDatabase);
+    database = candidateDatabase;
     const rowCount = Number(database.selectValue("SELECT max(rowid) FROM feature_meta")) || 0;
 
-    return `Database loaded via on-demand HTTP VFS (type: ${httpBackend.type}) – ~${rowCount} features indexed.`;
+    return `Database loaded via on-demand HTTP VFS (type: ${httpBackend.type}) – schema v${metadata.schemaVersion}, generator v${metadata.generatorVersion}, ~${rowCount} features indexed.`;
   },
 };
 

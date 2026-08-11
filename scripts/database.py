@@ -2,6 +2,7 @@ import os
 import sqlite3
 
 from config import (
+    GENERATOR_VERSION,
     PAGE_SIZE,
     PRAGMA_CACHE_SIZE,
     PRAGMA_JOURNAL_MODE,
@@ -9,6 +10,7 @@ from config import (
     PRAGMA_SECURE_DELETE,
     PRAGMA_SYNCHRONOUS,
     PRAGMA_TEMP_STORE,
+    SCHEMA_VERSION,
     VALID_STRANDS,
 )
 from utils import get_logger
@@ -32,6 +34,11 @@ CREATE TABLE IF NOT EXISTS feature_meta (
     biotype TEXT,
     description TEXT,
     functional_summary TEXT
+);
+
+CREATE TABLE IF NOT EXISTS database_metadata (
+    schema_version INTEGER NOT NULL,
+    generator_version TEXT NOT NULL
 );
 
 CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
@@ -61,6 +68,11 @@ INSERT INTO search_fts (rowid, feature_id, name, biotype, description, annotatio
 VALUES (?, ?, ?, ?, ?, ?);
 """
 
+INSERT_DATABASE_METADATA = """
+INSERT INTO database_metadata (schema_version, generator_version)
+VALUES (?, ?);
+"""
+
 
 class DatabaseBuilder:
     def __init__(self, db_path: str, use_prefix: bool = False):
@@ -86,6 +98,7 @@ class DatabaseBuilder:
         cur.execute(f"PRAGMA cache_size = {PRAGMA_CACHE_SIZE};")
 
         cur.executescript(make_schema(self.use_prefix))
+        cur.execute(INSERT_DATABASE_METADATA, (SCHEMA_VERSION, GENERATOR_VERSION))
         conn.commit()
 
         return conn
@@ -174,7 +187,22 @@ class DatabaseVerifier:
         if bad_strands > 0:
             errors.append(f"Found {bad_strands} rows with invalid strand values")
 
-        # 7. FTS5 internal integrity check
+        # 7. Schema and generator metadata match this indexer.
+        try:
+            metadata_rows = self.cur.execute(
+                "SELECT schema_version, generator_version FROM database_metadata"
+            ).fetchall()
+        except sqlite3.Error as exc:
+            errors.append(f"Database metadata check failed: {exc}")
+        else:
+            expected_metadata = [(SCHEMA_VERSION, GENERATOR_VERSION)]
+            if metadata_rows != expected_metadata:
+                errors.append(
+                    "Database metadata mismatch: "
+                    f"found {metadata_rows!r}, expected {expected_metadata!r}"
+                )
+
+        # 8. FTS5 internal integrity check
         try:
             self.cur.execute(
                 "INSERT INTO search_fts(search_fts) VALUES ('integrity-check')"
@@ -188,4 +216,4 @@ class DatabaseVerifier:
             )
             raise RuntimeError(error_msg)
 
-        logger.info(f"Verification passed: 7 checks OK ({meta_count:,} rows)")
+        logger.info(f"Verification passed: 8 checks OK ({meta_count:,} rows)")

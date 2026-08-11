@@ -2,6 +2,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from config import SCHEMA_VERSION
+
 ROOT = Path(__file__).parent.parent
 CASES_PATH = ROOT / "ui-component" / "src" / "test" / "search-quality-cases.json"
 
@@ -37,6 +39,13 @@ def test_fixed_mgyg_search_quality_matrix():
     connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
 
     try:
+        metadata = connection.execute(
+            "SELECT schema_version, generator_version FROM database_metadata"
+        ).fetchone()
+        assert metadata is not None
+        assert metadata[0] == fixture["schema_version"] == SCHEMA_VERSION
+        assert metadata[1]
+
         for case in fixture["cases"]:
             expression = case["match_expression"]
             total = connection.execute(

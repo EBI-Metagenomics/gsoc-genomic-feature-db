@@ -1,5 +1,10 @@
 import os
 
+# Bump for reader-incompatible table, field, or semantic changes.
+SCHEMA_VERSION = 1
+# Bump when the indexer changes its generated output, even if readers stay compatible.
+GENERATOR_VERSION = "1.0.0"
+
 BATCH_SIZE = int(os.getenv("INDEXER_BATCH_SIZE", "150000"))
 
 # Case-robust set of noisy feature types skipped in functional searches unless they carry annotations
