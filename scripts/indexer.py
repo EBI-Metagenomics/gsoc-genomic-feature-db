@@ -3,6 +3,7 @@ import argparse
 import os
 import sqlite3
 import sys
+import tempfile
 import time
 
 from config import BATCH_SIZE
@@ -37,12 +38,19 @@ def build_database(
     if isinstance(gff_paths, str):
         gff_paths = [gff_paths]
 
+    for gff_path in gff_paths:
+        if not os.path.isfile(gff_path):
+            raise FileNotFoundError(f"Input file not found: {gff_path}")
+
     logger.info(f"Creating compact FTS-only database: {db_path}")
 
-    builder = DatabaseBuilder(db_path, use_prefix)
-    conn = builder.prepare()
-    repo = FeatureRepository(conn)
-    verifier = DatabaseVerifier(conn)
+    output_dir = os.path.dirname(os.path.abspath(db_path))
+    os.makedirs(output_dir, exist_ok=True)
+    temp_fd, temp_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(db_path)}.", suffix=".tmp", dir=output_dir
+    )
+    os.close(temp_fd)
+    conn = None
 
     parsed_features = 0
     indexed_rows = 0
@@ -52,12 +60,14 @@ def build_database(
     fts_batch = []
 
     try:
+        builder = DatabaseBuilder(temp_path, use_prefix)
+        conn = builder.prepare()
+        repo = FeatureRepository(conn)
+        verifier = DatabaseVerifier(conn)
+
         conn.execute("BEGIN;")
         for gff_path in gff_paths:
             logger.info(f"Reading: {gff_path}")
-
-            if not os.path.exists(gff_path):
-                raise FileNotFoundError(f"Input file not found: {gff_path}")
 
             with GFFParser.open_gff_text(gff_path) as handle:
                 for line in handle:
@@ -102,12 +112,25 @@ def build_database(
 
         repo.optimize(vacuum=vacuum)
 
-    except Exception:
-        conn.rollback()
         conn.close()
-        raise
+        conn = None
+        os.replace(temp_path, db_path)
 
-    conn.close()
+    except (Exception, KeyboardInterrupt):
+        if conn is not None:
+            try:
+                conn.rollback()
+            except sqlite3.Error:
+                pass
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+        try:
+            os.remove(temp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
     size_mb = get_db_size_mb(db_path)
 

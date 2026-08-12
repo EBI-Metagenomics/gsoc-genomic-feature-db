@@ -51,8 +51,34 @@ python verify_schema.py ../sample_data/MGYG000490722/MGYG000490722.db.zip
 
 ## Testing
 
-Unit tests are written using `pytest`. To run the tests, ensure `pytest` is installed in your environment and run:
+Unit and integration tests use `pytest`. From the repository root, install the
+test tools and run the complete backend suite with:
 
 ```bash
-pytest test_indexer.py -v
+python -m pip install pytest pytest-cov
+python -m pytest -q
 ```
+
+To record line coverage locally, including missing-line details and the XML
+report produced by CI, run:
+
+```bash
+python -m pytest --cov=scripts --cov-report=term-missing --cov-report=xml
+```
+
+Coverage is diagnostic evidence, not a percentage gate or a substitute for the
+schema, search-result, boundary, and failure-path assertions in the test suite.
+CI records this report on Python 3.12 and uploads `coverage.xml` as the
+`python-coverage-3.12` workflow artifact.
+
+### Test data policy
+
+Normal pull-request CI uses the bounded public fixture already committed under
+`sample_data/` plus tiny GFF files created in temporary test directories. No
+large-data test is currently excluded from the Issue #7 suite, and normal CI
+does not download or generate large genomic datasets.
+
+Optional large-dataset performance and profiling work belongs to Issue #14. It
+must be run explicitly outside normal pull-request CI, using reproducible source
+URLs/checksums and local generated artifacts rather than committing large inputs
+or databases to this repository.
