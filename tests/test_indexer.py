@@ -1,4 +1,5 @@
 import gzip
+import hashlib
 import sqlite3
 import subprocess
 import sys
@@ -269,6 +270,45 @@ class TestCLI:
                 "SELECT schema_version, generator_version FROM database_metadata"
             ).fetchone()
         assert metadata == (SCHEMA_VERSION, GENERATOR_VERSION)
+
+    def test_cli_reports_reproducible_audit_summary(self, tmp_path):
+        gff = write_gff(
+            tmp_path / "summary.gff3",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=kept-gene",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.",
+            "seq-A\tsource\tgene\tnot-an-int\t4\t.\t+\t.\tID=bad-coordinate",
+            "seq-A\tsource\texon\t1\t4\t.\t+\t.\tID=quiet-exon",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\t.",
+            "seq-B\tsource\tCDS\t8\t12\t.\t-\t.\tID=kept-cds",
+        )
+        db = tmp_path / "summary.db"
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "indexer.py"), str(gff), "-o", str(db)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "Feature rows examined: 6" in output
+        assert "Indexed searchable rows: 2" in output
+        assert "Skipped rows: 4" in output
+        assert "malformed columns=1" in output
+        assert "non-integer coordinates=1" in output
+        assert "low-value unannotated features=1" in output
+        assert "features without identity or annotation=1" in output
+        assert "Distinct sequences: 2" in output
+        assert "Indexed feature types: CDS=1, gene=1" in output
+        assert (
+            f"Input SHA-256 ({gff}): {hashlib.sha256(gff.read_bytes()).hexdigest()}"
+            in output
+        )
+        assert f"DB size: {db.stat().st_size:,} bytes" in output
+        assert (
+            f"Output SHA-256: {hashlib.sha256(db.read_bytes()).hexdigest()}" in output
+        )
 
     @pytest.mark.parametrize(
         ("filename", "expected"),

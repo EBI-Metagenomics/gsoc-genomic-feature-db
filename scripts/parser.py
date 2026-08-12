@@ -13,6 +13,11 @@ from models import GenomicFeature
 
 
 class GFFParser:
+    MALFORMED_COLUMNS = "malformed_columns"
+    MALFORMED_COORDINATES = "malformed_coordinates"
+    FILTERED_LOW_VALUE = "filtered_low_value"
+    FILTERED_UNIDENTIFIED = "filtered_unidentified"
+
     @staticmethod
     def open_gff_text(path: str):
         if path.lower().endswith((".gz", ".bgz")):
@@ -136,21 +141,24 @@ class GFFParser:
         return result
 
     @classmethod
-    def parse_line(cls, line: str, generated_id: int) -> GenomicFeature | None:
+    def parse_line_with_reason(
+        cls, line: str, generated_id: int
+    ) -> tuple[GenomicFeature | None, str | None]:
+        """Parse one feature and identify why a non-feature row was skipped."""
         if not line or line[0] == "#" or line.isspace():
-            return None
+            return None, cls.MALFORMED_COLUMNS
 
         line = line.rstrip("\r\n")
         cols = line.split("\t")
 
         if len(cols) < 9:
-            return None
+            return None, cls.MALFORMED_COLUMNS
 
         try:
             start = int(cols[3])
             end = int(cols[4])
         except ValueError:
-            return None
+            return None, cls.MALFORMED_COORDINATES
 
         seqid = cols[0]
         feature_type = cols[2]
@@ -175,21 +183,30 @@ class GFFParser:
         has_identity = bool(name or not feature_id.startswith("generated_"))
 
         if feature_type_key in LOW_VALUE_TYPES and not has_real_annotation:
-            return None
+            return None, cls.FILTERED_LOW_VALUE
 
         if not has_real_annotation and not has_identity:
-            return None
+            return None, cls.FILTERED_UNIDENTIFIED
 
-        return GenomicFeature(
-            feature_id=feature_id,
-            name=name,
-            feature_type=feature_type,
-            seqid=seqid,
-            start=start,
-            end=end,
-            strand=strand,
-            biotype=biotype,
-            description=description,
-            annotations=annotations,
-            functional_summary=functional_summary,
+        return (
+            GenomicFeature(
+                feature_id=feature_id,
+                name=name,
+                feature_type=feature_type,
+                seqid=seqid,
+                start=start,
+                end=end,
+                strand=strand,
+                biotype=biotype,
+                description=description,
+                annotations=annotations,
+                functional_summary=functional_summary,
+            ),
+            None,
         )
+
+    @classmethod
+    def parse_line(cls, line: str, generated_id: int) -> GenomicFeature | None:
+        """Parse one feature, preserving the original feature-or-None API."""
+        feature, _reason = cls.parse_line_with_reason(line, generated_id)
+        return feature

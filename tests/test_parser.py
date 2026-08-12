@@ -88,3 +88,30 @@ class TestParseLine:
     )
     def test_structurally_short_or_non_integer_rows_are_skipped(self, line):
         assert GFFParser.parse_line(line, generated_id=1) is None
+
+    @pytest.mark.parametrize(
+        ("line", "expected_reason"),
+        [
+            (
+                "contig_1\tsource\tgene\t1\t2\t.\t+\t.",
+                GFFParser.MALFORMED_COLUMNS,
+            ),
+            (
+                "contig_1\tsource\tgene\tnot-an-int\t2\t.\t+\t.\tID=bad",
+                GFFParser.MALFORMED_COORDINATES,
+            ),
+            (
+                "contig_1\tsource\texon\t1\t2\t.\t+\t.\tID=quiet-exon",
+                GFFParser.FILTERED_LOW_VALUE,
+            ),
+            (
+                "contig_1\tsource\tgene\t1\t2\t.\t+\t.\t.",
+                GFFParser.FILTERED_UNIDENTIFIED,
+            ),
+        ],
+    )
+    def test_skipped_rows_report_a_specific_reason(self, line, expected_reason):
+        feature, reason = GFFParser.parse_line_with_reason(line, generated_id=1)
+
+        assert feature is None
+        assert reason == expected_reason

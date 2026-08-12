@@ -49,6 +49,14 @@ Verify a generated database by passing its path explicitly:
 python verify_schema.py ../sample_data/MGYG000490722/MGYG000490722.db.zip
 ```
 
+Every successful run prints an audit summary containing the number of feature
+rows examined, indexed and skipped; a skipped-row breakdown; distinct sequence
+and feature-type counts; exact database bytes; and SHA-256 digests for every
+input and the generated database. Use the output database size and digest in the
+browser dataset configuration so complete-download fallback can reject truncated
+or changed content. Hashing streams files in bounded chunks, so it does not load
+large genomic files into memory.
+
 ## Testing
 
 Unit and integration tests use `pytest`. From the repository root, install the

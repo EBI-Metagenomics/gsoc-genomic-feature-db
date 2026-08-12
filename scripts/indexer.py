@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from collections import Counter
 import os
 import sqlite3
 import sys
@@ -9,11 +10,18 @@ from contextlib import suppress
 
 from config import BATCH_SIZE
 from parser import GFFParser
-from utils import get_db_size_mb, get_logger
+from utils import get_db_size_mb, get_logger, sha256_file
 
 from database import DatabaseBuilder, DatabaseVerifier, FeatureRepository
 
 logger = get_logger("indexer")
+
+SKIP_LABELS = {
+    GFFParser.MALFORMED_COLUMNS: "malformed columns",
+    GFFParser.MALFORMED_COORDINATES: "non-integer coordinates",
+    GFFParser.FILTERED_LOW_VALUE: "low-value unannotated features",
+    GFFParser.FILTERED_UNIDENTIFIED: "features without identity or annotation",
+}
 
 
 def default_output_path(gff_path: str) -> str:
@@ -43,6 +51,8 @@ def build_database(
         if not os.path.isfile(gff_path):
             raise FileNotFoundError(f"Input file not found: {gff_path}")
 
+    input_digests = {gff_path: sha256_file(gff_path) for gff_path in gff_paths}
+
     logger.info(f"Creating compact FTS-only database: {db_path}")
 
     output_dir = os.path.dirname(os.path.abspath(db_path))
@@ -56,9 +66,13 @@ def build_database(
     parsed_features = 0
     indexed_rows = 0
     skipped_rows = 0
+    examined_rows = 0
     generated_id = 1
     meta_batch = []
     fts_batch = []
+    skip_reasons: Counter[str] = Counter()
+    sequence_ids: set[str] = set()
+    feature_types: Counter[str] = Counter()
 
     try:
         builder = DatabaseBuilder(temp_path, use_prefix)
@@ -82,10 +96,15 @@ def build_database(
                     if not line or line.startswith("#") or line.isspace():
                         continue
 
-                    feature = GFFParser.parse_line(line, generated_id)
+                    examined_rows += 1
+                    feature, skip_reason = GFFParser.parse_line_with_reason(
+                        line, generated_id
+                    )
 
                     if feature is None:
                         skipped_rows += 1
+                        if skip_reason is not None:
+                            skip_reasons[skip_reason] += 1
                         continue
 
                     rowid = generated_id
@@ -94,6 +113,8 @@ def build_database(
                     generated_id += 1
                     parsed_features += 1
                     indexed_rows += 1
+                    sequence_ids.add(feature.seqid)
+                    feature_types[feature.feature_type] += 1
 
                     if len(meta_batch) >= BATCH_SIZE:
                         repo.insert_batch(meta_batch, fts_batch)
@@ -127,13 +148,33 @@ def build_database(
             os.remove(temp_path)
         raise
 
+    size_bytes = os.path.getsize(db_path)
     size_mb = get_db_size_mb(db_path)
+    output_digest = sha256_file(db_path)
+    feature_type_summary = (
+        ", ".join(
+            f"{feature_type}={count:,}"
+            for feature_type, count in sorted(
+                feature_types.items(), key=lambda item: (-item[1], item[0].lower())
+            )
+        )
+        or "none"
+    )
+    skip_summary = ", ".join(
+        f"{label}={skip_reasons[reason]:,}" for reason, label in SKIP_LABELS.items()
+    )
 
     logger.info("Done.")
+    logger.info(f"Feature rows examined: {examined_rows:,}")
     logger.info(f"Indexed searchable rows: {indexed_rows:,}")
-    logger.info(f"Skipped low-value/invalid rows: {skipped_rows:,}")
+    logger.info(f"Skipped rows: {skipped_rows:,} ({skip_summary})")
+    logger.info(f"Distinct sequences: {len(sequence_ids):,}")
+    logger.info(f"Indexed feature types: {feature_type_summary}")
+    for input_path, digest in input_digests.items():
+        logger.info(f"Input SHA-256 ({input_path}): {digest}")
     logger.info(f"Output: {db_path}")
-    logger.info(f"DB size: {size_mb:.2f} MB")
+    logger.info(f"DB size: {size_bytes:,} bytes ({size_mb:.2f} MB)")
+    logger.info(f"Output SHA-256: {output_digest}")
     logger.info(f"Time elapsed: {time.time() - start_time:.2f} seconds")
 
 
