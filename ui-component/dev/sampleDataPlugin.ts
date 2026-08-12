@@ -60,13 +60,28 @@ function installSampleDataMiddleware(server: {
         return;
       }
 
-      const range = byteRange(request.headers.range, file.size);
-      const [start, end] = range ?? [0, file.size - 1];
-      response.statusCode = range ? 206 : 200;
+      const requestedRange = request.headers.range;
+      const range = byteRange(requestedRange, file.size);
       response.setHeader("Accept-Ranges", "bytes");
       response.setHeader("Access-Control-Allow-Origin", "*");
-      response.setHeader("Content-Length", end - start + 1);
+      response.setHeader(
+        "Access-Control-Expose-Headers",
+        "Accept-Ranges, Content-Length, Content-Range, ETag, Last-Modified",
+      );
+      response.setHeader("Cache-Control", "no-cache");
+      response.setHeader("ETag", `W/"${file.size}-${file.mtimeMs}"`);
+      response.setHeader("Last-Modified", file.mtime.toUTCString());
       response.setHeader("Content-Type", contentType(pathname));
+      if (requestedRange && !range) {
+        response.statusCode = 416;
+        response.setHeader("Content-Range", `bytes */${file.size}`);
+        response.setHeader("Content-Length", 0);
+        response.end();
+        return;
+      }
+      const [start, end] = range ?? [0, file.size - 1];
+      response.statusCode = range ? 206 : 200;
+      response.setHeader("Content-Length", end - start + 1);
       if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
 
       if (request.method === "HEAD") {

@@ -43,6 +43,12 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
 
   const searchInput = page.getByRole("searchbox", { name: "Search genomic features" });
   await expect(searchInput).toBeEnabled({ timeout: 60_000 });
+  await page.getByText("Database loading diagnostics").click();
+  const initialBytes = Number(
+    await page.getByTestId("database-response-bytes").getAttribute("data-bytes"),
+  );
+  expect(initialBytes).toBeGreaterThan(0);
+  expect(initialBytes).toBeLessThan(18_558_976);
   const genomeBrowser = page.locator(".cvf-jbrowse");
   await expect(genomeBrowser).toHaveAttribute("data-annotation-track-active", "true");
   await expect.poll(() => datasetRequests.has(runtimeAssets.gff)).toBe(true);
@@ -58,6 +64,10 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
     exact: true,
   });
   await expect(featureLink).toBeVisible({ timeout: 60_000 });
+  const searchBytes = Number(
+    await page.getByTestId("database-operation-bytes").getAttribute("data-bytes"),
+  );
+  expect(searchBytes).toBeGreaterThan(0);
   await featureLink.focus();
   await expect(featureLink).toHaveCSS("outline-width", "3px");
   await page.keyboard.press("Enter");

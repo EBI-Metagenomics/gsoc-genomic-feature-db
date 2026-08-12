@@ -27,3 +27,14 @@ test("serves every runtime asset as a bounded byte range", async ({ request }) =
     }
   }
 });
+
+test("rejects an unsatisfiable database range instead of returning the full file", async ({
+  request,
+}) => {
+  const path = runtimeAssets.database;
+  const response = await request.get(path, { headers: { Range: "bytes=999999999-" } });
+
+  expect(response.status()).toBe(416);
+  expect(response.headers()["content-range"]).toBe("bytes */18558976");
+  expect((await response.body()).byteLength).toBe(0);
+});
