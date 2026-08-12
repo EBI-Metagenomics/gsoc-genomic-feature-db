@@ -40,14 +40,21 @@ function searchState(overrides: Record<string, unknown> = {}) {
   return {
     results: [feature],
     loading: false,
+    ready: true,
     searching: false,
     loadingMore: false,
     hasMore: false,
     status: "ready",
     error: null,
     elapsed: 1,
+    mode: "range",
+    progress: null,
+    diagnostics: null,
+    canFallback: false,
     search: vi.fn(),
     loadMore: vi.fn(),
+    retry: vi.fn(),
+    downloadFullDatabase: vi.fn(),
     ...overrides,
   };
 }
@@ -83,7 +90,10 @@ describe("GenomicFeatureBrowser", () => {
     );
 
     expect(screen.getByTestId("selected-feature").textContent).toBe("none");
-    expect(searchHook).toHaveBeenLastCalledWith("/second.db.zip");
+    expect(searchHook).toHaveBeenLastCalledWith("/second.db.zip", {
+      expectedSizeBytes: undefined,
+      sha256: undefined,
+    });
   });
 
   it("shows a useful database or search failure", () => {
@@ -92,8 +102,30 @@ describe("GenomicFeatureBrowser", () => {
     render(<GenomicFeatureBrowser dataset={dataset} />);
 
     expect(screen.getByRole("alert").textContent).toContain(
-      "Search error: Database request failed",
+      "Database or search error: Database request failed",
     );
+  });
+
+  it("offers retry and an explicit full-download fallback after range failure", () => {
+    const retry = vi.fn();
+    const downloadFullDatabase = vi.fn();
+    searchHook.mockReturnValue(
+      searchState({
+        results: [],
+        error: "Range loading is unavailable",
+        canFallback: true,
+        retry,
+        downloadFullDatabase,
+      }),
+    );
+
+    render(<GenomicFeatureBrowser dataset={{ ...dataset, databaseSizeBytes: 18_558_976 }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
+    fireEvent.click(screen.getByRole("button", { name: /Download complete database/ }));
+
+    expect(retry).toHaveBeenCalledOnce();
+    expect(downloadFullDatabase).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: /17.7 MiB/ })).toBeTruthy();
   });
 
   it("labels result counts as loaded and reports whether another page exists", () => {

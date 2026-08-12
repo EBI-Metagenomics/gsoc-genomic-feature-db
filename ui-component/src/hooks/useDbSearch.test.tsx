@@ -3,13 +3,14 @@ import * as Comlink from "comlink";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GenomicFeature } from "../types";
-import type { SearchPageResult } from "../workers/db.worker";
+import type { DatabaseInitResult, SearchPageResult } from "../workers/db.worker";
 import { useDbSearch } from "./useDbSearch";
 
 const workerProxies = vi.hoisted(() => [] as Array<Record<string | symbol, unknown>>);
 
 vi.mock("comlink", () => ({
   releaseProxy: Symbol("releaseProxy"),
+  proxy: (callback: unknown) => callback,
   wrap: vi.fn(() => workerProxies.shift()),
 }));
 
@@ -23,14 +24,31 @@ class WorkerMock {
   }
 }
 
+const diagnostics = {
+  mode: "range" as const,
+  databaseSizeBytes: 1024,
+  pageSizeBytes: 1024,
+  bytesReceived: 100,
+  requests: 1,
+  retries: 0,
+  operationBytesReceived: 100,
+  operationRequests: 1,
+  operationRetries: 0,
+};
+
 function createProxy() {
   return {
-    initFromUrl: vi.fn(async (url: string) => `ready: ${url}`),
+    initFromUrl: vi.fn(async (url: string): Promise<DatabaseInitResult> => ({
+      message: `ready: ${url}`,
+      diagnostics,
+    })),
+    getDiagnostics: vi.fn(async () => diagnostics),
     searchPage: vi.fn(async (): Promise<SearchPageResult> => ({
       features: [],
       elapsed_ms: 0,
       next_cursor: null,
       has_more: false,
+      diagnostics,
     })),
     [Comlink.releaseProxy]: vi.fn(),
   };
@@ -81,6 +99,7 @@ describe("useDbSearch", () => {
       elapsed_ms: 1,
       next_cursor: null,
       has_more: false,
+      diagnostics,
     });
     workerProxies.push(firstProxy, secondProxy);
 
@@ -94,7 +113,11 @@ describe("useDbSearch", () => {
     rerender({ databaseUrl: "/second.db.zip" });
 
     await waitFor(() => {
-      expect(secondProxy.initFromUrl).toHaveBeenCalledWith("/second.db.zip");
+      expect(secondProxy.initFromUrl).toHaveBeenCalledWith(
+        "/second.db.zip",
+        expect.objectContaining({ mode: "range" }),
+        expect.any(Function),
+      );
       expect(result.current.results).toEqual([]);
     });
     expect(firstProxy[Comlink.releaseProxy]).toHaveBeenCalledOnce();
@@ -104,7 +127,7 @@ describe("useDbSearch", () => {
 
   it("ignores a previous database initialisation after the URL changes", async () => {
     const firstProxy = createProxy();
-    const firstInitialisation = deferred<string>();
+    const firstInitialisation = deferred<DatabaseInitResult>();
     firstProxy.initFromUrl.mockReturnValueOnce(firstInitialisation.promise);
     const secondProxy = createProxy();
     workerProxies.push(firstProxy, secondProxy);
@@ -119,7 +142,7 @@ describe("useDbSearch", () => {
     expect(result.current.status).toBe("ready: /second.db.zip");
 
     await act(async () => {
-      firstInitialisation.resolve("ready: /first.db.zip");
+      firstInitialisation.resolve({ message: "ready: /first.db.zip", diagnostics });
       await firstInitialisation.promise;
     });
     expect(result.current.status).toBe("ready: /second.db.zip");
@@ -147,12 +170,14 @@ describe("useDbSearch", () => {
         elapsed_ms: 1,
         next_cursor: 1,
         has_more: true,
+        diagnostics,
       })
       .mockResolvedValueOnce({
         features: [feature(1), feature(2)],
         elapsed_ms: 2,
         next_cursor: null,
         has_more: false,
+        diagnostics,
       });
     workerProxies.push(proxy);
 
@@ -195,6 +220,7 @@ describe("useDbSearch", () => {
         elapsed_ms: 1,
         next_cursor: null,
         has_more: false,
+        diagnostics,
       });
       await secondRequest;
     });
@@ -204,6 +230,7 @@ describe("useDbSearch", () => {
         elapsed_ms: 1,
         next_cursor: null,
         has_more: false,
+        diagnostics,
       });
       await firstRequest;
     });
@@ -231,6 +258,34 @@ describe("useDbSearch", () => {
     expect(secondHook.result.current.error).toBe("Search query failed");
   });
 
+  it("uses full-download mode only after the fallback action", async () => {
+    const rangeProxy = createProxy();
+    rangeProxy.initFromUrl.mockRejectedValueOnce(new Error("Range loading is unavailable"));
+    const downloadProxy = createProxy();
+    workerProxies.push(rangeProxy, downloadProxy);
+
+    const { result } = renderHook(() =>
+      useDbSearch("/features.db.zip", { expectedSizeBytes: 1024, sha256: "abc" }),
+    );
+    await waitFor(() => expect(result.current.canFallback).toBe(true));
+    expect(rangeProxy.initFromUrl).toHaveBeenCalledWith(
+      "/features.db.zip",
+      expect.objectContaining({ mode: "range" }),
+      expect.any(Function),
+    );
+
+    act(() => result.current.downloadFullDatabase());
+
+    await waitFor(() =>
+      expect(downloadProxy.initFromUrl).toHaveBeenCalledWith(
+        "/features.db.zip",
+        { mode: "full-download", expectedSizeBytes: 1024, sha256: "abc" },
+        expect.any(Function),
+      ),
+    );
+    expect(result.current.mode).toBe("full-download");
+  });
+
   it("allows only one load-more request while the current page is pending", async () => {
     const proxy = createProxy();
     const nextPage = deferred<SearchPageResult>();
@@ -240,6 +295,7 @@ describe("useDbSearch", () => {
         elapsed_ms: 1,
         next_cursor: 1,
         has_more: true,
+        diagnostics,
       })
       .mockReturnValueOnce(nextPage.promise);
     workerProxies.push(proxy);
@@ -263,6 +319,7 @@ describe("useDbSearch", () => {
         elapsed_ms: 1,
         next_cursor: null,
         has_more: false,
+        diagnostics,
       });
       await firstLoad;
     });

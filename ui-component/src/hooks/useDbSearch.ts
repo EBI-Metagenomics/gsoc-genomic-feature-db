@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MIN_QUERY_LENGTH } from "../config";
 import type { GenomicFeature } from "../types";
 import type { WorkerApi } from "../workers/db.worker";
+import type {
+  DatabaseIntegrity,
+  DatabaseLoadMode,
+  LoadingProgress,
+  TransferDiagnostics,
+} from "../workers/databaseTransport";
 import {
   appendUniqueFeatures,
   errorMessage,
@@ -15,27 +21,43 @@ export type { SearchPageResult, SequenceRegion } from "../workers/db.worker";
 export type { GenomicFeature } from "../types";
 export type { UseDbSearchReturn } from "./dbSearchState";
 
-/**
- * Owns a SQLite HTTP-VFS worker for one exact raw database URL.
- *
- * Changing `databaseUrl` disposes the old worker and clears accession state.
- */
-export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
+interface LoadRequest {
+  url: string;
+  mode: DatabaseLoadMode;
+  attempt: number;
+}
+
+/** Own a validated range-backed SQLite worker with an explicit full-download fallback. */
+export function useDbSearch(
+  databaseUrl: string,
+  integrity: DatabaseIntegrity = {},
+): UseDbSearchReturn {
   const workerRef = useRef<Comlink.Remote<WorkerApi> | null>(null);
   const activeSearchRef = useRef<ActiveSearch | null>(null);
   const resultsRef = useRef<GenomicFeature[]>([]);
   const nextCursorRef = useRef<number | null>(null);
   const hasMoreRef = useRef(false);
   const loadMoreInFlightRef = useRef(false);
+  const [loadRequest, setLoadRequest] = useState<LoadRequest>({
+    url: databaseUrl,
+    mode: "range",
+    attempt: 0,
+  });
+  const mode = loadRequest.url === databaseUrl ? loadRequest.mode : "range";
+  const attempt = loadRequest.url === databaseUrl ? loadRequest.attempt : 0;
 
   const [results, setResults] = useState<GenomicFeature[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [searching, setSearching] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [status, setStatus] = useState("Initialising…");
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [progress, setProgress] = useState<LoadingProgress | null>(null);
+  const [diagnostics, setDiagnostics] = useState<TransferDiagnostics | null>(null);
+  const [initialisationFailed, setInitialisationFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +65,6 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       type: "module",
     });
     const proxy = Comlink.wrap<WorkerApi>(rawWorker);
-
     workerRef.current = proxy;
 
     async function boot(): Promise<void> {
@@ -56,23 +77,50 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       resultsRef.current = [];
       setResults([]);
       setLoading(true);
+      setReady(false);
       setSearching(false);
       setLoadingMore(false);
       setHasMore(false);
       setError(null);
       setElapsed(0);
-      setStatus("Connecting to database…");
+      setProgress(null);
+      setDiagnostics(null);
+      setInitialisationFailed(false);
+      setStatus(
+        mode === "range" ? "Checking server range support…" : "Downloading complete database…",
+      );
+      const report = Comlink.proxy((nextProgress: LoadingProgress) => {
+        if (!cancelled) setProgress(nextProgress);
+      });
       try {
-        const message = await proxy.initFromUrl(databaseUrl);
+        const result = await proxy.initFromUrl(
+          databaseUrl,
+          {
+            mode,
+            expectedSizeBytes: integrity.expectedSizeBytes,
+            sha256: integrity.sha256,
+          },
+          report,
+        );
         if (!cancelled) {
-          setStatus(message);
+          setStatus(result.message);
+          setDiagnostics(result.diagnostics);
+          setProgress(null);
           setLoading(false);
+          setReady(true);
         }
       } catch (caught: unknown) {
         if (!cancelled) {
           setError(errorMessage(caught));
           setStatus("Failed to initialise database.");
+          setInitialisationFailed(true);
+          setProgress(null);
           setLoading(false);
+          try {
+            setDiagnostics(await proxy.getDiagnostics());
+          } catch {
+            // The original error is more useful if the worker itself is unavailable.
+          }
         }
       }
     }
@@ -85,7 +133,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       rawWorker.terminate();
       if (workerRef.current === proxy) workerRef.current = null;
     };
-  }, [databaseUrl]);
+  }, [databaseUrl, mode, attempt, integrity.expectedSizeBytes, integrity.sha256]);
 
   const search = useCallback(async (query: string) => {
     const activeSearch = { query };
@@ -99,13 +147,13 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     setHasMore(false);
     setLoadingMore(false);
     setError(null);
+    setInitialisationFailed(false);
 
     const worker = workerRef.current;
     if (query.trim().length < MIN_QUERY_LENGTH || !worker) {
       setSearching(false);
       return;
     }
-
     setSearching(true);
     try {
       const page = await worker.searchPage(query);
@@ -113,6 +161,7 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       resultsRef.current = page.features;
       setResults(page.features);
       setElapsed(page.elapsed_ms);
+      setDiagnostics(page.diagnostics);
       nextCursorRef.current = page.next_cursor;
       hasMoreRef.current = page.has_more;
       setHasMore(page.has_more);
@@ -142,7 +191,6 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     ) {
       return 0;
     }
-
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
@@ -155,13 +203,12 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
       resultsRef.current = nextResults;
       setResults(nextResults);
       setElapsed((current) => current + page.elapsed_ms);
+      setDiagnostics(page.diagnostics);
       nextCursorRef.current = page.next_cursor;
       hasMoreRef.current = page.has_more;
       setHasMore(page.has_more);
     } catch (caught: unknown) {
-      if (activeSearchRef.current === activeSearch) {
-        setError(errorMessage(caught));
-      }
+      if (activeSearchRef.current === activeSearch) setError(errorMessage(caught));
     } finally {
       if (activeSearchRef.current === activeSearch) {
         loadMoreInFlightRef.current = false;
@@ -171,16 +218,39 @@ export function useDbSearch(databaseUrl: string): UseDbSearchReturn {
     return addedCount;
   }, []);
 
+  const retry = useCallback(() => {
+    setLoadRequest((current) => ({
+      url: databaseUrl,
+      mode: current.url === databaseUrl ? current.mode : "range",
+      attempt: current.url === databaseUrl ? current.attempt + 1 : 1,
+    }));
+  }, [databaseUrl]);
+
+  const downloadFullDatabase = useCallback(() => {
+    setLoadRequest((current) => ({
+      url: databaseUrl,
+      mode: "full-download",
+      attempt: current.attempt + 1,
+    }));
+  }, [databaseUrl]);
+
   return {
     results,
     loading,
+    ready,
     searching,
     loadingMore,
     hasMore,
     status,
     error,
     elapsed,
+    mode,
+    progress,
+    diagnostics,
+    canFallback: initialisationFailed && mode === "range",
     search,
     loadMore,
+    retry,
+    downloadFullDatabase,
   };
 }

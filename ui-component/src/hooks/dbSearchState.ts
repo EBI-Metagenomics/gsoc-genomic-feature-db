@@ -1,18 +1,30 @@
 import type { GenomicFeature } from "../types";
+import type {
+  DatabaseLoadMode,
+  LoadingProgress,
+  TransferDiagnostics,
+} from "../workers/databaseTransport";
 
 /** State and actions exposed by the browser-local SQLite search hook. */
 export interface UseDbSearchReturn {
   results: GenomicFeature[];
   loading: boolean;
+  ready: boolean;
   searching: boolean;
   loadingMore: boolean;
   hasMore: boolean;
   status: string;
   error: string | null;
   elapsed: number;
+  mode: DatabaseLoadMode;
+  progress: LoadingProgress | null;
+  diagnostics: TransferDiagnostics | null;
+  canFallback: boolean;
   search: (query: string) => Promise<void>;
   /** Load the next page and return the number of unique features appended. */
   loadMore: () => Promise<number>;
+  retry: () => void;
+  downloadFullDatabase: () => void;
 }
 
 export interface ActiveSearch {
