@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 import time
+from contextlib import suppress
 
 from config import BATCH_SIZE
 from parser import GFFParser
@@ -118,18 +119,12 @@ def build_database(
 
     except (Exception, KeyboardInterrupt):
         if conn is not None:
-            try:
+            with suppress(sqlite3.Error):
                 conn.rollback()
-            except sqlite3.Error:
-                pass
-            try:
+            with suppress(sqlite3.Error):
                 conn.close()
-            except sqlite3.Error:
-                pass
-        try:
+        with suppress(FileNotFoundError):
             os.remove(temp_path)
-        except FileNotFoundError:
-            pass
         raise
 
     size_mb = get_db_size_mb(db_path)
