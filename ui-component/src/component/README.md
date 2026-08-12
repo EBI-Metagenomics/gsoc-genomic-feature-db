@@ -44,8 +44,10 @@ The components sit at the top of a local-first pipeline:
 
 1. **The hook (`useDbSearch.ts`)** — owns the Web Worker lifecycle and exposes
    paginated state, `search(query)`, and `loadMore()`.
-2. **The Web Worker (`db.worker.ts`)** — loads the SQLite database via **HTTP VFS**
-   (Range requests, no full download), sanitises the query (`workers/fts.ts`), and runs
+2. **The Web Worker (`db.worker.ts`)** — validates the server and normally loads SQLite
+   through an **HTTP VFS** using bounded range requests. If validation fails, the UI can
+   perform a clearly labelled complete download only after the user selects that fallback.
+   The worker measures response bytes, sanitises the query (`workers/fts.ts`), and runs
    an `FTS5 MATCH` query against `search_fts`, joining matches to `feature_meta`.
    Results use stable rowid ordering and keyset pagination.
 3. **The indexer (`scripts/`)** — `parser.py` parses `.gff` / `.gff.gz` files and
@@ -74,6 +76,12 @@ To test switching, add a complete five-file runtime bundle under
 `src/demo/datasets.ts`. Restart the Vite server after adding filesystem assets.
 This registry and directory are local demonstration fixtures; production hosts
 should pass approved external URLs through the `GenomicDataset` prop.
+
+`GenomicDataset.databaseSizeBytes` and `databaseSha256` are optional integrity
+metadata controlled by the host. The component uses them when supplied but does
+not require every publication pipeline to generate them. The database schema
+version is separate: `indexer.py` writes it automatically, and the worker checks
+it before running searches so incompatible database layouts fail clearly.
 
 ## Props
 

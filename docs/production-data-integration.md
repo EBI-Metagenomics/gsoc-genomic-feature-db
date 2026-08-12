@@ -96,7 +96,15 @@ clear initialization error.
 
 The data service must support `GET`, `HEAD`, and single byte-range requests. A
 valid range request must return `206 Partial Content`, `Accept-Ranges: bytes`,
-`Content-Range`, and the requested `Content-Length`.
+`Content-Range`, and the requested `Content-Length`. An invalid or unsatisfiable
+range must return `416 Range Not Satisfiable` with `Content-Range: bytes */<size>`;
+it must not fall back to a full `200` response.
+
+Serve the raw database as `application/vnd.sqlite3`, `application/x-sqlite3`, or
+`application/octet-stream`. Do not apply `Content-Encoding` or intermediary
+content transformation to SQLite responses: byte offsets must address the exact
+published representation. The historical `.db.zip` suffix is a delivery name;
+the file is raw SQLite rather than a ZIP archive.
 
 When the application and data use different origins, configure at least:
 
@@ -104,12 +112,38 @@ When the application and data use different origins, configure at least:
 Access-Control-Allow-Origin: https://<approved-application-origin>
 Access-Control-Allow-Methods: GET, HEAD, OPTIONS
 Access-Control-Allow-Headers: Range
-Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range
+Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range, ETag, Last-Modified
 ```
 
 Same-origin deployments do not require CORS, but still require byte ranges.
 Serve `.gff.gz` as raw BGZF bytes and do not add `Content-Encoding: gzip`, since
 transparent decompression invalidates Tabix byte offsets.
+
+Use immutable/versioned database URLs. Hosts should send an ETag or
+Last-Modified validator and a cache policy suitable for immutable content. A
+proxy or CDN must cache partial responses correctly and must not combine ranges
+from different database versions. `Timing-Allow-Origin` is optional and only
+needed when operations staff want browser Resource Timing wire-size data.
+
+For stronger corruption detection, a host may publish `databaseSizeBytes` and a
+SHA-256 value as `databaseSha256`. Both fields are optional: the reusable
+component does not require a particular EBI publication or checksum policy.
+When supplied, the expected size is checked during initialization and complete
+download, and the SHA-256 value is checked by the explicit complete-download
+fallback. Without them, range mode still validates response boundaries, the
+reported remote length, the SQLite header, and the application schema; complete
+download still validates the received length and runs `PRAGMA quick_check`.
+
+The SQLite `database_metadata.schema_version` is different from host-provided
+integrity metadata. It is generated automatically by `indexer.py` and remains
+required because it prevents the component from querying an incompatible
+database layout. No per-dataset manual version entry is needed.
+
+If range validation fails, the component displays the reason and offers Retry
+and an explicit complete-database download. It never silently changes to full
+download. Hosts that do not permit full `GET` responses must provide a separate
+documented fallback artifact; per-sequence databases are an alternative for
+datasets too large to hold completely in browser memory.
 
 ## Build modes
 
