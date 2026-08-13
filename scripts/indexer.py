@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 import argparse
 from collections import Counter
+from datetime import datetime, timezone
+import json
 import os
+import platform
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
 from contextlib import suppress
+from typing import Any
 
-from config import BATCH_SIZE
+from config import BATCH_SIZE, GENERATOR_VERSION, SCHEMA_VERSION
 from parser import GFFParser
 from utils import get_db_size_mb, get_logger, sha256_file
 
@@ -22,6 +27,45 @@ SKIP_LABELS = {
     GFFParser.FILTERED_LOW_VALUE: "low-value unannotated features",
     GFFParser.FILTERED_UNIDENTIFIED: "features without identity or annotation",
 }
+
+STATS_SCHEMA_VERSION = 1
+
+
+def current_git_commit() -> str | None:
+    """Return the repository commit when Git metadata is available."""
+    repository_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    commit = result.stdout.strip()
+    return commit if result.returncode == 0 and commit else None
+
+
+def write_stats_json(path: str, statistics: dict[str, Any]) -> None:
+    """Atomically write one stable, machine-readable indexing summary."""
+    output_path = os.path.abspath(path)
+    output_dir = os.path.dirname(output_path)
+    os.makedirs(output_dir, exist_ok=True)
+    temp_fd, temp_path = tempfile.mkstemp(
+        prefix=f".{os.path.basename(output_path)}.", suffix=".tmp", dir=output_dir
+    )
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(statistics, handle, indent=2, sort_keys=True)
+            handle.write("\n")
+        os.replace(temp_path, output_path)
+    except BaseException:
+        with suppress(FileNotFoundError):
+            os.remove(temp_path)
+        raise
 
 
 def default_output_path(gff_path: str) -> str:
@@ -42,8 +86,10 @@ def build_database(
     use_prefix: bool = False,
     vacuum: bool = True,
     limit: int | None = None,
-) -> None:
-    start_time = time.time()
+    stats_json_path: str | None = None,
+) -> dict[str, Any]:
+    started_at = datetime.now(timezone.utc)
+    start_time = time.perf_counter()
     if isinstance(gff_paths, str):
         gff_paths = [gff_paths]
 
@@ -52,6 +98,7 @@ def build_database(
             raise FileNotFoundError(f"Input file not found: {gff_path}")
 
     input_digests = {gff_path: sha256_file(gff_path) for gff_path in gff_paths}
+    input_sizes = {gff_path: os.path.getsize(gff_path) for gff_path in gff_paths}
 
     logger.info(f"Creating compact FTS-only database: {db_path}")
 
@@ -175,7 +222,61 @@ def build_database(
     logger.info(f"Output: {db_path}")
     logger.info(f"DB size: {size_bytes:,} bytes ({size_mb:.2f} MB)")
     logger.info(f"Output SHA-256: {output_digest}")
-    logger.info(f"Time elapsed: {time.time() - start_time:.2f} seconds")
+    completed_at = datetime.now(timezone.utc)
+    duration_seconds = time.perf_counter() - start_time
+    statistics: dict[str, Any] = {
+        "stats_schema_version": STATS_SCHEMA_VERSION,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "duration_seconds": round(duration_seconds, 6),
+        "inputs": [
+            {
+                "path": os.path.abspath(input_path),
+                "size_bytes": input_sizes[input_path],
+                "sha256": input_digests[input_path],
+            }
+            for input_path in gff_paths
+        ],
+        "output": {
+            "path": os.path.abspath(db_path),
+            "size_bytes": size_bytes,
+            "sha256": output_digest,
+        },
+        "counts": {
+            "feature_rows_examined": examined_rows,
+            "indexed_rows": indexed_rows,
+            "skipped_rows": skipped_rows,
+            "distinct_sequences": len(sequence_ids),
+        },
+        "skip_reasons": {reason: skip_reasons[reason] for reason in SKIP_LABELS},
+        "feature_type_distribution": dict(
+            sorted(feature_types.items(), key=lambda item: item[0].lower())
+        ),
+        "configuration": {
+            "batch_size": BATCH_SIZE,
+            "limit": limit,
+            "prefix_index": use_prefix,
+            "vacuum": vacuum,
+            "fts_optimize": True,
+            "analyze": True,
+            "verification_checks": 8,
+        },
+        "environment": {
+            "python_version": platform.python_version(),
+            "sqlite_version": sqlite3.sqlite_version,
+            "platform": platform.platform(),
+            "schema_version": SCHEMA_VERSION,
+            "generator_version": GENERATOR_VERSION,
+            "git_commit": current_git_commit(),
+        },
+    }
+    if stats_json_path is not None:
+        write_stats_json(stats_json_path, statistics)
+
+    logger.info(f"Time elapsed: {duration_seconds:.2f} seconds")
+    if stats_json_path is not None:
+        logger.info(f"Statistics JSON: {stats_json_path}")
+    return statistics
 
 
 def main() -> None:
@@ -214,6 +315,12 @@ def main() -> None:
         help="Limit rows for testing.",
     )
 
+    parser.add_argument(
+        "--stats-json",
+        default=None,
+        help="Write a stable machine-readable indexing summary to this path.",
+    )
+
     args = parser.parse_args()
     if args.output is None and len(args.gff) != 1:
         parser.error("--output is required when indexing multiple GFF files")
@@ -226,6 +333,7 @@ def main() -> None:
             use_prefix=args.prefix,
             vacuum=not args.no_vacuum,
             limit=args.limit,
+            stats_json_path=args.stats_json,
         )
     except (OSError, RuntimeError, sqlite3.Error, ValueError) as exc:
         logger.error(f"ERROR: {exc}")

@@ -16,6 +16,7 @@ export interface UseDbSearchReturn {
   status: string;
   error: string | null;
   elapsed: number;
+  initializationElapsed: number | null;
   mode: DatabaseLoadMode;
   progress: LoadingProgress | null;
   diagnostics: TransferDiagnostics | null;

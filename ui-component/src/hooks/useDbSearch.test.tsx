@@ -41,6 +41,7 @@ function createProxy() {
     initFromUrl: vi.fn(async (url: string): Promise<DatabaseInitResult> => ({
       message: `ready: ${url}`,
       diagnostics,
+      elapsed_ms: 12,
     })),
     getDiagnostics: vi.fn(async () => diagnostics),
     searchPage: vi.fn(async (): Promise<SearchPageResult> => ({
@@ -142,7 +143,11 @@ describe("useDbSearch", () => {
     expect(result.current.status).toBe("ready: /second.db.zip");
 
     await act(async () => {
-      firstInitialisation.resolve({ message: "ready: /first.db.zip", diagnostics });
+      firstInitialisation.resolve({
+        message: "ready: /first.db.zip",
+        diagnostics,
+        elapsed_ms: 12,
+      });
       await firstInitialisation.promise;
     });
     expect(result.current.status).toBe("ready: /second.db.zip");

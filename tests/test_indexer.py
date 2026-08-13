@@ -1,5 +1,6 @@
 import gzip
 import hashlib
+import json
 import sqlite3
 import subprocess
 import sys
@@ -309,6 +310,76 @@ class TestCLI:
         assert (
             f"Output SHA-256: {hashlib.sha256(db.read_bytes()).hexdigest()}" in output
         )
+
+    def test_cli_writes_structured_statistics_without_changing_default_output(
+        self, tmp_path
+    ):
+        gff = write_gff(
+            tmp_path / "structured.gff3",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=kept;Name=kept",
+            "seq-A\tsource\tgene\tbad\t4\t.\t+\t.\tID=skipped",
+        )
+        db = tmp_path / "structured.db"
+        stats_path = tmp_path / "nested" / "stats.json"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "indexer.py"),
+                str(gff),
+                "-o",
+                str(db),
+                "--no-vacuum",
+                "--stats-json",
+                str(stats_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        statistics = json.loads(stats_path.read_text(encoding="utf-8"))
+        assert statistics["stats_schema_version"] == 1
+        assert statistics["counts"] == {
+            "distinct_sequences": 1,
+            "feature_rows_examined": 2,
+            "indexed_rows": 1,
+            "skipped_rows": 1,
+        }
+        assert statistics["skip_reasons"]["malformed_coordinates"] == 1
+        assert statistics["feature_type_distribution"] == {"gene": 1}
+        assert statistics["configuration"]["vacuum"] is False
+        assert statistics["output"]["size_bytes"] == db.stat().st_size
+        assert (
+            statistics["output"]["sha256"]
+            == hashlib.sha256(db.read_bytes()).hexdigest()
+        )
+        assert (
+            statistics["inputs"][0]["sha256"]
+            == hashlib.sha256(gff.read_bytes()).hexdigest()
+        )
+        assert statistics["environment"]["python_version"]
+        assert statistics["environment"]["sqlite_version"]
+        assert statistics["duration_seconds"] >= 0
+
+    def test_cli_does_not_write_statistics_after_failed_build(self, tmp_path):
+        stats_path = tmp_path / "failed.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_DIR / "indexer.py"),
+                "missing.gff3",
+                "--stats-json",
+                str(stats_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert not stats_path.exists()
 
     @pytest.mark.parametrize(
         ("filename", "expected"),
