@@ -7,7 +7,7 @@ For local tarball installation and the reusable component API, see
 
 `sample_data/` is a versioned local fixture for development, tests, and the
 explicit bundled demonstration. It is not the production data source and is not
-copied by the normal `npm run build` command.
+copied by the package build (`npm run build` or `npm run build:lib`).
 
 The reusable browser component accepts one host-resolved `GenomicDataset`. It
 does not assume an EMBL-EBI filesystem layout or call an undocumented service.
@@ -152,18 +152,22 @@ datasets too large to hold completely in browser memory.
 
 From `ui-component/`:
 
-- `npm run build` creates the normal production frontend and excludes
-  `sample_data/`.
+- `npm run build` and `npm run build:lib` create the reusable package output and
+  exclude `sample_data/`.
 - `npm run build:demo` explicitly copies the local fixture into `dist/` for a
   self-contained demonstration.
-- `npm run dev` and `npm run preview` serve the fixture directly from the
-  workspace through development-only range middleware.
+- `npm run dev` serves the fixture directly from the workspace through
+  development-only range middleware.
+- `npm run preview` serves the current `dist/`; run `npm run build:demo` first
+  when previewing the self-contained repository demonstration.
 - `npm run deploy` intentionally uses `build:demo`, because that command deploys
   the repository demonstration rather than an EBI production instance.
 
-An EBI deployment should use `npm run build` and publish genomic assets through
-the approved data service. The host application should obtain or construct a
-`GenomicDataset` and pass it to `GenomicFeatureBrowser`.
+An EBI production application should install a reviewed package tarball (or a
+future approved registry release), build the host application, and publish the
+genomic assets through the approved data service. The host application obtains
+or constructs a `GenomicDataset` and passes it to `GenomicFeatureBrowser`. The
+package build is a library artifact; it is not a deployable EBI host application.
 
 ## Decisions still required from EBI
 

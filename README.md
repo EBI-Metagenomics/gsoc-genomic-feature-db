@@ -13,7 +13,7 @@ The system has two halves:
 | Half                                | Language                  | Purpose                                                                                                                   |
 | ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **Backend indexer** (`scripts/`)    | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
-| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view                          |
+| **Frontend and package** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view, either as the repository demo or a reusable local package |
 
 There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
 TBI/CSI assets are served as static files. SQLite querying happens client-side in
@@ -29,37 +29,49 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ## Architecture Overview
 
-```
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  BUILD TIME (offline, one-shot)                                 │
-  │                                                                 │
-  │  .gff.gz files ──▶ scripts/indexer.py ──▶ {gff-name}.db.zip        │
-  │                     │                                           │
-  │                     ├── parser.py      (GFF line parsing)       │
-  │                     ├── models.py      (GenomicFeature dataclass)│
-  │                     ├── database.py    (schema, insert, verify) │
-  │                     └── config.py      (constants & tuning)     │
-  └─────────────────────────────────────────────────────────────────┘
-                              │
-                    static file served by Vite
-                              │
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  RUNTIME (browser, no server)                                   │
-  │                                                                 │
-  │  App.tsx                                                        │
-  │    ├─ useDbSearch.ts  (worker lifecycle + paginated state)      │
-  │    │    └─ db.worker.ts  (Comlink + SQLite HTTP VFS)            │
-  │    │         ├─ fts.ts  (safe FTS5 MATCH builder)               │
-  │    │         └─ HTTP Range requests ──▶ {accession}.db.zip      │
-  │    └─ SearchBar.tsx  (all-fields query + Load More)             │
-  │         ├─ SearchForm.tsx  (VF responsive search form)          │
-  │         ├─ FeatureTypeFacets.tsx  (loaded-result counts)        │
-  │         ├─ ResultsTable.tsx                                    │
-  │         └─ AnnotationBadges.tsx  (legend + detail popover)      │
-  └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph build["Build time: offline"]
+    gff[(GFF or GFF.GZ)]
+    indexer[Python indexer]
+    database[(SQLite FTS5 database)]
+
+    gff --> indexer --> database
+  end
+
+  assetHost[Static HTTPS asset host]
+  genomicFiles[(FASTA, FAI,<br/>BGZF GFF, and TBI or CSI)]
+
+  database --> assetHost
+  genomicFiles --> assetHost
+
+  subgraph runtime["Runtime: browser"]
+    user([User])
+    hostApp[Host application]
+    component[GenomicFeatureBrowser]
+    worker[Search Web Worker]
+    genomeView[Private GenomeView boundary]
+    jbrowse[Embedded JBrowse]
+
+    user --> hostApp
+    hostApp -->|GenomicDataset| component
+    component -->|search query| worker
+    worker -->|search results| component
+    component -->|selected feature| genomeView
+    genomeView --> jbrowse
+  end
+
+  worker -->|requests SQLite byte ranges| assetHost
+  jbrowse -->|requests FASTA and GFF byte ranges| assetHost
 ```
 
 ### Key Runtime Flow
+
+This is a deliberately small data-flow overview. In the current React implementation,
+`GenomicFeatureBrowser` owns the search state and selection; `App.tsx` is only the
+repository demo host. JBrowse is reached through the private `GenomeView` boundary.
+See the maintained [architecture guide](docs/architecture.md) for component, class,
+and sequence diagrams.
 
 1. The host passes one `GenomicDataset` containing exact asset URLs.
 2. `useDbSearch` boots a URL-scoped Web Worker and opens `{accession}.db.zip`
@@ -170,6 +182,10 @@ gsoc-genomic-feature-db/
 │   │   ├── index.css                  # Global layout
 │   │   ├── cvf-genomic-search.css     # Search / badge / popover / table styles
 │   │   ├── types.ts                    # Dataset and component types
+│   │   ├── library.ts                  # Public package entry point
+│   │   │
+│   │   ├── genome-view/
+│   │   │   └── GenomeView.tsx         # Private boundary around JBrowse
 │   │   │
 │   │   ├── hooks/
 │   │   │   └── useDbSearch.ts         # Worker lifecycle + search state
@@ -194,11 +210,19 @@ gsoc-genomic-feature-db/
 │   │       └── annotations/
 │   │           ├── sources.ts         # Annotation source catalogue (data)
 │   │           └── parse.ts           # functional_summary parser
+│   ├── scripts/                         # Package build, inspection, and test orchestration
 │   ├── index.html                      # React shell + VF/EBI CDN assets
 │   ├── package.json
 │   ├── vite.config.ts
+│   ├── vite.lib.config.ts              # Reusable library build configuration
 │   ├── tsconfig.json
 │   └── tsconfig.app.json
+│
+├── examples/
+│   └── package-consumer/               # Independent Vite/React tarball consumer
+│       ├── e2e/                        # Packed-package browser test
+│       ├── package.json
+│       └── README.md                   # Purpose and manual test instructions
 │
 ├── sample_data/                       # Local demo/test fixture; not production data
 │   └── MGYG000490722/
@@ -216,6 +240,7 @@ gsoc-genomic-feature-db/
 │   └── test_search_quality.py         # Fixed demo-database search matrix
 │
 ├── docs/                              # Design documentation
+│   ├── README.md                       # Documentation index
 │   ├── schema-reference.md            # Full schema + FTS5 config docs
 │   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
 │   ├── advanced_column_search.md      # detail=column rationale
@@ -465,9 +490,10 @@ npm run build     # tsc -b && vite build
 - Load Visual Framework globally in the host; do not restyle JBrowse or Material
   UI internals from component CSS.
 
-The normal `npm run build` excludes `sample_data/`. Use `npm run build:demo`
-only for a self-contained demonstration; production should supply approved EBI
-HTTPS asset URLs through `GenomicDataset`.
+The default `npm run build` is the reusable package build and excludes
+`sample_data/`. Use `npm run build:demo` only for a self-contained
+demonstration; production should supply approved EBI HTTPS asset URLs through
+`GenomicDataset`.
 
 ---
 

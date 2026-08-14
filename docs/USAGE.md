@@ -41,16 +41,18 @@ for that window. Search for at least three characters and select a result; the
 existing view navigates to and highlights the feature while fetching any
 additional ranges needed for the selected region.
 
-The local static server exposes the fixture in
+The local development server exposes the fixture in
 `sample_data/MGYG000490722/` under the `/MGYG000490722/` URL path. The directory
-name is not part of the browser URL. Both `npm run dev` and `npm run preview`
-serve these files with byte-range responses. This is development/demo behavior,
-not the production data architecture.
+name is not part of the browser URL. `npm run dev` serves these files with
+byte-range responses. To test the built demo, run `npm run build:demo` before
+`npm run preview`; the demo build copies the fixture into `dist/`. This is
+development/demo behavior, not the production data architecture.
 
-The normal `npm run build` excludes `sample_data/`. Use `npm run build:demo`
-only when intentionally creating a self-contained demonstration. Production
-must publish the five files through the approved HTTPS data service, with range
-support and CORS when the application and data have different origins. See
+The default `npm run build` is the reusable package build and excludes
+`sample_data/`. Use `npm run build:demo` only when intentionally creating a
+self-contained demonstration. Production must publish the five files through
+the approved HTTPS data service, with range support and CORS when the
+application and data have different origins. See
 [Production data integration](production-data-integration.md).
 
 ## Use the local component package
