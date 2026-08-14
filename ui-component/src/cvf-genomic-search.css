@@ -4,34 +4,6 @@
   }
 }
 
-/* Use more of the viewport and slightly tighter vertical rhythm instead of
-   simulating browser zoom. Text and controls remain at accessible sizes, and
-   users retain full control of their browser's zoom setting. */
-.cvf-app {
-  width: 95%;
-  max-width: 110rem;
-  box-sizing: border-box;
-  margin: 0 auto;
-  padding: 1.25rem clamp(0.75rem, 1.5vw, 1.5rem) 1.5rem;
-}
-
-.cvf-app > * + * {
-  margin-top: 1rem;
-}
-
-.cvf-page-title {
-  margin: 0;
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  line-height: 1.15;
-}
-
-@media (max-width: 48rem) {
-  .cvf-app {
-    width: 100%;
-    padding: 0.75rem;
-  }
-}
-
 .cvf-search-spinner {
   display: inline-block;
   width: 18px;

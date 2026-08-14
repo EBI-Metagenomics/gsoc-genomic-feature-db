@@ -1,5 +1,8 @@
 # Production data integration
 
+For local tarball installation and the reusable component API, see
+[Local package integration](package-integration.md).
+
 ## Scope
 
 `sample_data/` is a versioned local fixture for development, tests, and the

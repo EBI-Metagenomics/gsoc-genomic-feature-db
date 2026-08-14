@@ -1,0 +1,30 @@
+/* Repository demonstration layout. These selectors are not shipped in styles.css. */
+.cvf-app {
+  width: 95%;
+  max-width: 110rem;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 1.25rem clamp(0.75rem, 1.5vw, 1.5rem) 1.5rem;
+}
+
+.cvf-app > * + * {
+  margin-top: 1rem;
+}
+
+.cvf-page-title {
+  margin: 0;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  line-height: 1.15;
+}
+
+.cvf-demo-accession:focus-visible {
+  outline: 3px solid #007c82;
+  outline-offset: 2px;
+}
+
+@media (max-width: 48rem) {
+  .cvf-app {
+    width: 100%;
+    padding: 0.75rem;
+  }
+}

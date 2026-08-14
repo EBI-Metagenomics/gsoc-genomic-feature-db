@@ -133,6 +133,9 @@ describe("GenomicLinearView", () => {
         label: "feature-1",
       },
     ]);
+    expect(container.querySelector<HTMLElement>(".cvf-jbrowse")?.dataset.highlightedInterval).toBe(
+      "contig-1:499..600",
+    );
     expect(state.session.view.navToLocString).toHaveBeenCalledOnce();
     await waitFor(() => {
       expect(container.querySelector(".cvf-jbrowse")?.getAttribute("data-visible-location")).toBe(

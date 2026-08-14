@@ -24,4 +24,13 @@ export default tseslint.config(
       "max-lines": ["error", { max: 350, skipBlankLines: true, skipComments: true }],
     },
   },
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+  },
 );

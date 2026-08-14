@@ -1,0 +1,11 @@
+body {
+  margin: 13px;
+}
+
+#root {
+  display: block;
+}
+
+.package-consumer {
+  max-width: 96rem;
+}

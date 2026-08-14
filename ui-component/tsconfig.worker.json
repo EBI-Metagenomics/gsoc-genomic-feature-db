@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": false,
+    "outDir": "./dist/worker",
+    "rootDir": "./src",
+    "tsBuildInfoFile": null
+  },
+  "include": ["src/workers/db.worker.ts"]
+}

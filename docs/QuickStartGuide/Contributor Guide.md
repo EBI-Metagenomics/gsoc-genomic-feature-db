@@ -32,6 +32,39 @@ Use the URL printed by Vite and search for an identifier such as
 `MGYG000490722_00001`. Selecting a result should navigate and highlight it in
 JBrowse.
 
+## Build and test the reusable package
+
+The repository also builds the same composed search-and-JBrowse experience as
+the temporary private package `genomic-feature-db-component`. The package is
+local-only: keep `"private": true`, use an npm tarball, and do not publish it or
+configure a registry.
+
+Create and inspect the local tarball:
+
+```powershell
+cd ui-component
+npm.cmd run pack:local
+```
+
+Run the complete clean-consumer workflow:
+
+```powershell
+npm.cmd run test:package
+```
+
+The workflow installs the tarball into `examples/package-consumer`, confirms
+that the consumer resolves one React installation, typechecks and builds the
+consumer, then runs its critical Playwright journey in Vite development and
+production-preview modes. It covers worker and SQLite WASM loading, search,
+pagination, JBrowse navigation, exact highlight conversion, and highlight
+replacement.
+
+The consumer is an executable integration example, not another package to
+publish. Read its [folder README](../../examples/package-consumer/README.md) for
+manual commands, the purpose of each file, test-only data serving, and generated
+files that must remain uncommitted. The supported public component API and data
+contract are documented in the [package README](../../ui-component/README.md).
+
 ## Search scope and known limitations
 
 The project is intentionally designed for compact, predictable discovery of
@@ -80,13 +113,14 @@ matrix, performance evidence, and ranking decision.
 Run the checks that cover the area you changed, then run the full relevant suite
 before opening a pull request.
 
-| Area                           | Commands                                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Python indexer                 | `.venv\Scripts\python.exe -m pytest`                                                                                      |
-| Python formatting/linting      | `black --check scripts tests`; `ruff check scripts tests`                                                                 |
-| Frontend unit and build checks | `cd ui-component`; `npm run typecheck`; `npm run lint`; `npm run format:check`; `npm test`; `npm run build`               |
-| Chromium critical E2E          | `cd ui-component`; `npx playwright install chromium`; `npm run test:e2e -- e2e/genomic-search.spec.ts --project=chromium` |
-| Firefox E2E                    | `cd ui-component`; `npx playwright install firefox`; `npm run test:e2e -- e2e/genomic-search.spec.ts --project=firefox`   |
+| Area                           | Commands                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Python indexer                 | `.venv\Scripts\python.exe -m pytest`                                                                                                  |
+| Python formatting/linting      | `black --check scripts tests`; `ruff check scripts tests`                                                                             |
+| Frontend unit and build checks | `cd ui-component`; `npm run typecheck`; `npm run lint`; `npm run format:check`; `npm test`; `npm run build:lib`; `npm run build:demo` |
+| Packed package consumer        | `cd ui-component`; `npm run test:package`                                                                                             |
+| Chromium critical E2E          | `cd ui-component`; `npx playwright install chromium`; `npm run test:e2e -- e2e/genomic-search.spec.ts --project=chromium`             |
+| Firefox E2E                    | `cd ui-component`; `npx playwright install firefox`; `npm run test:e2e -- e2e/genomic-search.spec.ts --project=firefox`               |
 
 CI executes the Python checks, frontend checks, and the Chromium critical E2E
 workflow. Firefox is an expected local check before releases or after
@@ -104,6 +138,9 @@ browser-sensitive changes; WebKit is optional local validation.
    checksums instead.
 5. In the pull request, state the validation commands and results, including
    Firefox when it applies.
+6. Do not commit `dist/`, `node_modules/`, `package-artifacts/`, Playwright
+   reports, test results, npm caches, or `*.tsbuildinfo` files. Commit the
+   consumer's source/configuration and lockfile, but not its generated output.
 
 ## Adding another demo dataset
 

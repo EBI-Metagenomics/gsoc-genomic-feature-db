@@ -1,5 +1,20 @@
 # User Guide
 
+## Choose the workflow
+
+There are two supported local frontend workflows:
+
+1. The repository demonstration under `ui-component` runs directly from source
+   and uses the committed `sample_data` fixture.
+2. The packed-package consumer under `examples/package-consumer` installs the
+   local npm tarball and proves how a separate Vite/React application consumes
+   the public component API.
+
+The consumer is an executable example and integration test. It is not a second
+publishable package, and it is excluded from the component tarball. See its
+[folder README](../examples/package-consumer/README.md) for its directory guide
+and manual test instructions.
+
 ## Run the bundled demonstration
 
 `MGYG000490722` is the supported demonstration dataset. Its complete runtime
@@ -37,6 +52,49 @@ only when intentionally creating a self-contained demonstration. Production
 must publish the five files through the approved HTTPS data service, with range
 support and CORS when the application and data have different origins. See
 [Production data integration](production-data-integration.md).
+
+## Use the local component package
+
+The reusable frontend currently uses the temporary private name
+`genomic-feature-db-component`. It is tested only through local `npm pack`
+tarballs; do not publish it or remove `"private": true` before the package name,
+licence, registry, release owner, and first EBI consumer are approved.
+
+Build the package and create the tarball:
+
+```powershell
+cd ui-component
+npm.cmd run pack:local
+```
+
+Run the complete clean-consumer verification:
+
+```powershell
+npm.cmd run test:package
+```
+
+This installs the tarball into `examples/package-consumer`, verifies one React
+installation, typechecks and builds the consumer, and runs the same critical
+journey against Vite development and production preview. The journey observes
+the packaged database worker and SQLite WASM responses, searches, loads another
+25-result page, navigates JBrowse, checks exact coordinate conversion, and
+confirms that a second selection replaces the first highlight.
+
+Package consumers import only:
+
+```tsx
+import {
+  GenomicFeatureBrowser,
+  type GenomicDataset,
+} from "genomic-feature-db-component";
+import "genomic-feature-db-component/styles.css";
+```
+
+The only public value export is `GenomicFeatureBrowser`. Search hooks, worker
+APIs, the private genome-view seam, a search-only component, and external
+JBrowse state are not public APIs. See the [package README](../ui-component/README.md)
+for the complete `GenomicDataset` example, Vite settings, compatibility target,
+and runtime asset-server contract.
 
 ## Regenerate the search database
 
