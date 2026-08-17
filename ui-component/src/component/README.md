@@ -63,8 +63,8 @@ old worker, results, selection, and JBrowse state before creating the next insta
 4. Optional `databaseSizeBytes` and `databaseSha256` values let the worker reject a
    truncated or changed complete-download response.
 
-The `.db.zip` suffix is an HTTP delivery name; the file contains raw SQLite bytes,
-not a ZIP archive.
+The `.db.zip` filename is an HTTP delivery convention that discourages automatic
+HTTP compression; the file contains raw SQLite bytes, not a ZIP archive.
 
 ## Selection and JBrowse flow
 

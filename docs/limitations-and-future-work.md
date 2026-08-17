@@ -15,9 +15,10 @@ The design choices below are deliberate trade-offs, not missing backend work.
 - Indexed attributes have per-tag and length caps. The database is a compact
   discovery index for interactive search, not a lossless duplicate of every GFF
   attribute.
-- Database ZIPs are immutable, versioned static assets. Regenerating from the
-  source GFF on schema changes is the intended reproducible distribution model,
-  rather than an in-place migration service.
+- Databases are immutable, versioned static assets. The `.db.zip` filename is a
+  delivery convention to discourage automatic HTTP compression, not a ZIP
+  archive. Regenerating from the source GFF on schema changes is the intended
+  reproducible distribution model, rather than an in-place migration service.
 - HTTP Range, `HEAD`, content length and CORS support are deployment contracts
   for browser-local SQLite. Static hosts or CDNs must preserve them so the
   browser can fetch only the required database pages.

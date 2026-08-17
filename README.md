@@ -10,9 +10,9 @@
 
 The system has two halves:
 
-| Half                                | Language                  | Purpose                                                                                                                   |
-| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Backend indexer** (`scripts/`)    | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
+| Half                                       | Language                  | Purpose                                                                                                                                                     |
+| ------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend indexer** (`scripts/`)           | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search                                   |
 | **Frontend and package** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view, either as the repository demo or a reusable local package |
 
 There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
@@ -114,7 +114,7 @@ and sequence diagrams.
 | Column               | Type       | Purpose                                                                  |
 | -------------------- | ---------- | ------------------------------------------------------------------------ |
 | `rowid`              | INTEGER PK | Shared rowid for JOIN                                                    |
-| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity        |
+| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity       |
 | `name`               | TEXT       | Gene/feature name                                                        |
 | `feature_type`       | TEXT       | Biological type (gene, mRNA, CDS, exon…)                                 |
 | `seqid`              | TEXT       | Chromosome / contig                                                      |
@@ -268,8 +268,9 @@ python scripts/indexer.py \
   sample_data/MGYG000490722/MGYG000490722.gff.gz
 ```
 
-This creates `sample_data/MGYG000490722/MGYG000490722.db.zip`. The suffix is an
-HTTP delivery name; the file contains raw SQLite bytes.
+This creates `sample_data/MGYG000490722/MGYG000490722.db.zip`. The filename is an
+HTTP delivery convention that discourages automatic HTTP compression; the file
+contains raw SQLite bytes and is not a ZIP archive.
 
 **CLI options:** `--prefix` (pre-index 3/4-char prefixes), `--no-vacuum`, `--limit N`.
 

@@ -216,7 +216,8 @@ global CSS before `genomic-feature-db-component/styles.css`.
 
 All dataset URLs must refer to one immutable assembly:
 
-- raw SQLite delivered with the `.db.zip` suffix;
+- raw SQLite delivered with the `.db.zip` filename (a convention that
+  discourages automatic HTTP compression, not a ZIP archive);
 - uncompressed FASTA and its `.fai` index; and
 - BGZF-compressed GFF and its `.tbi` or `.csi` index.
 

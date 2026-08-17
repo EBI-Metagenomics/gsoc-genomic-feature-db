@@ -29,8 +29,9 @@ To parse one `.gff`, `.gff3`, or gzip-compressed equivalent:
 python indexer.py ../sample_data/MGYG000490722/MGYG000490722.gff.gz
 ```
 
-This writes `MGYG000490722.db.zip` beside the input. The `.zip` suffix is the
-HTTP delivery name; the file contains raw SQLite bytes and is not a ZIP archive.
+This writes `MGYG000490722.db.zip` beside the input. The `.db.zip` filename is a
+delivery convention to discourage automatic HTTP compression; the file contains
+raw SQLite bytes and is not a ZIP archive.
 Every generated database contains one `database_metadata` row identifying its
 schema and generator versions. Compatible browsers validate this contract before
 querying feature data.

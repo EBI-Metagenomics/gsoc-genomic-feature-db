@@ -2,20 +2,21 @@
 
 ## Repository structure
 
-| Path | Responsibility |
-|---|---|
-| `scripts/` | GFF parser, SQLite indexer, schema SQL and version configuration. |
-| `ui-component/` | React search UI, Web Worker, SQLite WASM integration, JBrowse view, tests and package build. |
-| `examples/package-consumer/` | Clean external-style consumer used to validate the packed tarball. |
-| `sample_data/` | Small committed fixtures and demonstration assets. |
-| `tests/` | Python indexer, schema, search and benchmark tests. |
-| `benchmark/` | Dataset manifest, profiling harness, machine-readable evidence and reports. |
-| `docs/` | User, contributor, architecture, schema and integration contracts. |
+| Path                         | Responsibility                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `scripts/`                   | GFF parser, SQLite indexer, schema SQL and version configuration.                            |
+| `ui-component/`              | React search UI, Web Worker, SQLite WASM integration, JBrowse view, tests and package build. |
+| `examples/package-consumer/` | Clean external-style consumer used to validate the packed tarball.                           |
+| `sample_data/`               | Small committed fixtures and demonstration assets.                                           |
+| `tests/`                     | Python indexer, schema, search and benchmark tests.                                          |
+| `benchmark/`                 | Dataset manifest, profiling harness, machine-readable evidence and reports.                  |
+| `docs/`                      | User, contributor, architecture, schema and integration contracts.                           |
 
 ## Indexer and frontend data contract
 
-The indexer writes a ZIP containing SQLite tables defined by
-`scripts/database.py`.
+The indexer writes a raw SQLite database containing the tables defined by
+`scripts/database.py`. Its `.db.zip` filename is a delivery convention used to
+discourage automatic HTTP compression; it is not a ZIP archive.
 `database_metadata.schema_version` is the compatibility gate. The worker checks
 that version before querying `feature_meta` and the contentless `search_fts`
 table. Search rows expose stable feature coordinates and display metadata;

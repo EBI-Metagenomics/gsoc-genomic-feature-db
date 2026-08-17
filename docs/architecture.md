@@ -96,7 +96,8 @@ The Python modules under `scripts/`:
 7. optimize and verify the completed SQLite database; and
 8. publish it using the historical `.db.zip` delivery suffix.
 
-The output contains raw SQLite bytes, not a ZIP archive. See the
+The `.db.zip` filename is a delivery convention that discourages automatic HTTP
+compression; the output contains raw SQLite bytes, not a ZIP archive. See the
 [schema reference](schema-reference.md) for the authoritative database contract.
 
 ## Browser search runtime

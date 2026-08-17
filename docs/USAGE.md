@@ -23,8 +23,9 @@ is needed for the local demo. The bundle contains:
 
 - `MGYG000490722.gff.gz` and its Tabix index (`.tbi`)
 - `MGYG000490722.fna` and its FASTA index (`.fai`)
-- `MGYG000490722.db.zip`, the generated SQLite search database (despite the
-  suffix, it contains raw SQLite bytes)
+- `MGYG000490722.db.zip`, the generated raw SQLite search database. The
+  `.db.zip` filename is a delivery convention to discourage automatic HTTP
+  compression; it is not a ZIP archive.
 
 From a fresh checkout, install the exact frontend dependencies and start Vite:
 
@@ -124,11 +125,13 @@ names used by the configured JBrowse assembly.
 
 ## Host a generated database
 
-Serve the `.db.zip` file as an immutable static asset. The host must support
+Serve the raw SQLite `.db.zip` database as an immutable static asset. The
+`.db.zip` filename is intentional: it helps prevent automatic HTTP compression
+of a range-addressed database, but the file is not compressed and must not be
+extracted. The host must support
 HTTP byte ranges (`Accept-Ranges: bytes` and correct `206 Partial Content`
 responses), preserve `Content-Length`, and allow cross-origin `GET`, `HEAD` and
-`Range` requests when the UI and data use different origins. Do not decompress
-the ZIP on the server.
+`Range` requests when the UI and data use different origins.
 
 The database URL and its exact byte size are part of the runtime contract. See
 [Production data integration](production-data-integration.md) for example
@@ -166,7 +169,8 @@ integration](jbrowse-integration.md).
 - **Database request returns `200` instead of `206`:** enable byte-range serving
   and ensure a proxy or CDN does not strip the `Range` header.
 - **Database size mismatch:** update `sizeBytes` after regenerating or deploying
-  the ZIP; do not use the uncompressed SQLite size.
+  the database; it must equal the exact raw SQLite byte size served at the
+  `.db.zip` URL.
 - **CORS or `HEAD` failure:** allow the UI origin and expose range and length
   headers. Test both `HEAD` and a small byte-range `GET`.
 - **Search result does not navigate:** make the indexed GFF `seqid` and JBrowse

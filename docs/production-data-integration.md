@@ -76,13 +76,13 @@ from entering the search and JBrowse components.
 
 For each accession, publish:
 
-| Asset                              | Purpose                                                               |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| `{accession}.db.zip`               | Raw SQLite database queried through HTTP VFS; it is not a ZIP archive |
-| `{accession}.fna`                  | Reference sequence                                                    |
-| `{accession}.fna.fai`              | Index generated from the exact deployed FASTA                         |
-| `{accession}.gff.gz`               | BGZF-compressed annotations                                           |
-| `{accession}.gff.gz.tbi` or `.csi` | Index generated from the exact deployed GFF                           |
+| Asset                              | Purpose                                                                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `{accession}.db.zip`               | Raw SQLite database queried through HTTP VFS; the filename discourages automatic HTTP compression and is not a ZIP archive |
+| `{accession}.fna`                  | Reference sequence                                                                                                         |
+| `{accession}.fna.fai`              | Index generated from the exact deployed FASTA                                                                              |
+| `{accession}.gff.gz`               | BGZF-compressed annotations                                                                                                |
+| `{accession}.gff.gz.tbi` or `.csi` | Index generated from the exact deployed GFF                                                                                |
 
 The SQLite, GFF, and FASTA sequence identifiers must agree exactly. Publication
 should be atomic: upload versioned files first, validate them, then expose the
@@ -106,8 +106,9 @@ it must not fall back to a full `200` response.
 Serve the raw database as `application/vnd.sqlite3`, `application/x-sqlite3`, or
 `application/octet-stream`. Do not apply `Content-Encoding` or intermediary
 content transformation to SQLite responses: byte offsets must address the exact
-published representation. The historical `.db.zip` suffix is a delivery name;
-the file is raw SQLite rather than a ZIP archive.
+published representation. The historical `.db.zip` suffix is a delivery name
+used to discourage automatic HTTP compression; the file is raw SQLite rather
+than a ZIP archive.
 
 When the application and data use different origins, configure at least:
 
