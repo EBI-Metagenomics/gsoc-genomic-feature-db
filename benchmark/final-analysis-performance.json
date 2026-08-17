@@ -1,0 +1,10 @@
+{
+  "regressions": {},
+  "unexpected_results": [
+    "An earlier final run on the same laptop, using a lower-power mode, reported a 2018 MHz CPU-frequency snapshot and broad timing regressions. Its generated files were intentionally discarded after this environmental effect was recorded. This repeat used a 3040 MHz snapshot matching baseline and is the authoritative Issue 13 comparison."
+  ],
+  "limitations": [
+    "The large initial-load p95 improvements are reported but are not claimed as a product improvement: page readiness is sensitive to browser startup, cache state and the Edge patch version.",
+    "One controlled baseline and one controlled final matrix do not provide confidence intervals; repeat the matrix on controlled hardware before making a release performance guarantee."
+  ]
+}

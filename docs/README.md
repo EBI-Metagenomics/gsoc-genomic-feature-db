@@ -13,6 +13,9 @@ package, and decision documentation for the project.
 | [Package integration](package-integration.md)                 | Review the private tarball package, its public API, and clean consumer workflow.                                                       |
 | [Production data integration](production-data-integration.md) | Publish compatible SQLite, FASTA, GFF, and index assets with HTTP Range and CORS support.                                              |
 | [JBrowse integration](jbrowse-integration.md)                 | Understand assembly/track configuration, navigation, coordinate conversion, and highlighting.                                          |
+| [Known limitations and future work](limitations-and-future-work.md) | Review explicit product, hosting, browser, data and benchmarking boundaries and possible follow-up work. |
+| [Clean command verification](command-verification.md)              | See which development, test, build, package and benchmark commands run in clean environments. |
+| [Issue 13 acceptance evidence](issue-13-acceptance.md)              | Map every Issue 13 checkbox to committed evidence and remaining closure steps. |
 
 The frontend directory has its own [main README](../ui-component/README.md), and
 the independent tarball fixture has a

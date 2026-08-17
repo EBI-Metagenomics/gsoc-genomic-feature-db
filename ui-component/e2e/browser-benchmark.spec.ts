@@ -28,6 +28,7 @@ const datasetRole = process.env.BENCHMARK_BROWSER_DATASET ?? "small";
 const queries = queryManifest.datasets[datasetRole];
 const coldRuns = Number(process.env.BENCHMARK_COLD_RUNS ?? 3);
 const warmRuns = Number(process.env.BENCHMARK_WARM_RUNS ?? 10);
+const benchmarkPhase = process.env.BENCHMARK_PHASE ?? "baseline";
 const outputPath = resolve(
   process.env.BENCHMARK_BROWSER_OUTPUT ??
     resolve(repositoryRoot, "benchmark/results/browser-baseline.json"),
@@ -58,8 +59,11 @@ if (!Number.isSafeInteger(coldRuns) || coldRuns < 1) {
 if (!Number.isSafeInteger(warmRuns) || warmRuns < 1) {
   throw new Error("BENCHMARK_WARM_RUNS must be a positive integer");
 }
+if (benchmarkPhase !== "baseline" && benchmarkPhase !== "final") {
+  throw new Error("BENCHMARK_PHASE must be either baseline or final");
+}
 
-test("records a reproducible browser database and search baseline", async ({ browser }) => {
+test("records reproducible browser database and search measurements", async ({ browser }) => {
   const initialisation: InitialisationSample[] = [];
   const searches: SearchSample[] = [];
 
@@ -89,6 +93,7 @@ test("records a reproducible browser database and search baseline", async ({ bro
     result_schema_version: 1,
     created_at: new Date().toISOString(),
     run_type: coldRuns >= 3 && warmRuns >= 10 ? "baseline" : "smoke",
+    benchmark_phase: benchmarkPhase,
     dataset_key: datasetRole,
     dataset_role: datasetRole,
     database_path: process.env.BENCHMARK_DATABASE_PATH

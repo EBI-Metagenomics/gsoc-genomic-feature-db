@@ -16,6 +16,12 @@ from benchmarklib import (  # noqa: E402
     select_datasets,
     verify_dataset,
 )
+from compare_results import (  # noqa: E402
+    ComparisonError,
+    browser_by_role,
+    comparison_rows,
+    validate_comparability,
+)
 from generate_report import generate_report, percentile  # noqa: E402
 
 
@@ -41,6 +47,76 @@ def write_manifest(tmp_path: Path, datasets) -> Path:
     path = tmp_path / "datasets.json"
     path.write_text(json.dumps(manifest_document(datasets)), encoding="utf-8")
     return path
+
+
+def comparison_payloads():
+    indexer_environment = {
+        "platform": "test-platform",
+        "python_version": "3.13.0",
+        "logical_cpu_count": 8,
+        "physical_cpu_count": 4,
+    }
+    datasets = []
+    for role in ("small", "medium", "large"):
+        datasets.append(
+            {
+                "role": role,
+                "id": f"{role}-fixture",
+                "input": {
+                    "sha256": role * 8,
+                    "compressed_bytes": 10,
+                    "uncompressed_bytes": 20,
+                },
+                "index_run": {
+                    "external_wall_seconds": 10,
+                    "peak_process_tree_rss_bytes": 100,
+                    "indexer": {"output": {"size_bytes": 50}},
+                },
+            }
+        )
+    baseline_indexer = {
+        "run_type": "baseline",
+        "configuration": {"vacuum": True},
+        "environment": indexer_environment,
+        "datasets": datasets,
+    }
+    final_indexer = json.loads(json.dumps(baseline_indexer))
+    final_indexer["benchmark_phase"] = "final"
+    browsers = []
+    for role in ("small", "medium", "large"):
+        browsers.append(
+            {
+                "run_type": "baseline",
+                "dataset_role": role,
+                "query_manifest": "benchmark/browser-queries.json",
+                "configuration": {"cold_runs": 3, "warm_runs": 10},
+                "environment": {"node_version": "v26.4.0"},
+                "initialisation": [
+                    {
+                        "page_ready_ms": 100,
+                        "bytes": 100,
+                        "js_heap_used_bytes": 100,
+                        "long_task_duration_ms": 0,
+                    }
+                ],
+                "searches": [
+                    {
+                        "cache_state": "cold",
+                        "category": "exact_identifier",
+                        "query": "gene-1",
+                        "visible_results_ms": 10,
+                        "worker_query_ms": 5,
+                        "bytes": 10,
+                        "js_heap_used_bytes": 100,
+                        "long_task_duration_ms": 0,
+                    }
+                ],
+            }
+        )
+    final_browsers = json.loads(json.dumps(browsers))
+    for result in final_browsers:
+        result["benchmark_phase"] = "final"
+    return baseline_indexer, final_indexer, browsers, final_browsers
 
 
 def test_repository_manifest_defines_three_ordered_roles():
@@ -87,6 +163,45 @@ def test_report_percentile_uses_nearest_rank_and_labels_smoke_data():
     assert "No formal targets are proposed from smoke data" in report
 
 
+def test_final_comparison_requires_matching_inputs_and_produces_all_metrics():
+    baseline_indexer, final_indexer, baseline_browsers, final_browsers = (
+        comparison_payloads()
+    )
+    baseline_browser_by_role = browser_by_role(baseline_browsers)
+    final_browser_by_role = browser_by_role(final_browsers)
+    baseline_datasets, final_datasets = validate_comparability(
+        baseline_indexer,
+        final_indexer,
+        baseline_browser_by_role,
+        final_browser_by_role,
+    )
+
+    rows = comparison_rows(
+        baseline_datasets,
+        final_datasets,
+        baseline_browser_by_role,
+        final_browser_by_role,
+    )
+
+    assert len(rows) == 27
+    assert not any(row["regression"] for row in rows)
+
+
+def test_final_comparison_rejects_environment_drift():
+    baseline_indexer, final_indexer, baseline_browsers, final_browsers = (
+        comparison_payloads()
+    )
+    final_browsers[0]["environment"]["node_version"] = "v22.0.0"
+
+    with pytest.raises(ComparisonError, match="Node version"):
+        validate_comparability(
+            baseline_indexer,
+            final_indexer,
+            browser_by_role(baseline_browsers),
+            browser_by_role(final_browsers),
+        )
+
+
 @pytest.mark.skipif(
     importlib.util.find_spec("psutil") is None,
     reason="benchmark-only psutil dependency is not installed",
@@ -120,6 +235,8 @@ def test_profiler_smoke_run_emits_characteristics_memory_and_index_stats(tmp_pat
             "--limit",
             "2",
             "--no-vacuum",
+            "--benchmark-phase",
+            "final",
             "--work-dir",
             str(work),
             "--output",
@@ -133,6 +250,7 @@ def test_profiler_smoke_run_emits_characteristics_memory_and_index_stats(tmp_pat
     assert result.returncode == 0, result.stdout + result.stderr
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["run_type"] == "smoke"
+    assert payload["benchmark_phase"] == "final"
     assert len(payload["datasets"]) == 1
     measured = payload["datasets"][0]
     assert measured["source_characteristics"]["feature_rows"] == 2
@@ -185,6 +303,7 @@ def test_profiler_accepts_an_arbitrary_local_gff_without_a_manifest(tmp_path):
     assert payload["input_mode"] == "local"
     assert payload["manifest"] is None
     assert payload["run_type"] == "baseline"
+    assert payload["benchmark_phase"] == "baseline"
     measured = payload["datasets"][0]
     assert measured["id"] == "my-dataset"
     assert measured["role"] == "custom"

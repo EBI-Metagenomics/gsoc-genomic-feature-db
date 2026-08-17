@@ -109,6 +109,75 @@ python scripts/indexer.py sample_data/MGYG000490722/MGYG000490722.gff.gz
 This replaces the database beside the GFF. Do not commit a regenerated artifact
 unless its change is intentional and reviewed.
 
+To choose the output location explicitly, including for a `.gff3.gz` file:
+
+```powershell
+python scripts/indexer.py C:\data\annotations.gff3.gz `
+  --output C:\data\annotations.db.zip
+```
+
+Supported inputs are GFF3 text files with `.gff`, `.gff3`, `.gff.gz` or
+`.gff3.gz` extensions. Feature rows need the standard nine tab-separated
+columns. The parser stops at `##FASTA`, skips comments and malformed rows, and
+normalizes attribute names for search. Sequence names must match the reference
+names used by the configured JBrowse assembly.
+
+## Host a generated database
+
+Serve the `.db.zip` file as an immutable static asset. The host must support
+HTTP byte ranges (`Accept-Ranges: bytes` and correct `206 Partial Content`
+responses), preserve `Content-Length`, and allow cross-origin `GET`, `HEAD` and
+`Range` requests when the UI and data use different origins. Do not decompress
+the ZIP on the server.
+
+The database URL and its exact byte size are part of the runtime contract. See
+[Production data integration](production-data-integration.md) for example
+headers, CORS requirements and validation commands.
+
+## Configure search and JBrowse
+
+Pass one `GenomicDataset` object to the reusable component. Its database URL and
+size configure search; its assembly and tracks configure JBrowse:
+
+```tsx
+<GenomicFeatureBrowser
+  dataset={{
+    accession: "my-dataset",
+    databaseUrl: "https://data.example.org/annotations.db.zip",
+    databaseSizeBytes: 12345678,
+    fastaUrl: "https://data.example.org/reference.fna",
+    fastaIndexUrl: "https://data.example.org/reference.fna.fai",
+    gffUrl: "https://data.example.org/annotations.gff.gz",
+    gffIndexUrl: "https://data.example.org/annotations.gff.gz.tbi",
+  }}
+/>
+```
+
+These URLs let the component construct its internal JBrowse assembly and GFF
+track. A selected search row supplies `seqid`, `start` and `end` to that view.
+GFF coordinates are one-based inclusive; the component performs the required
+zero-based highlight conversion. `seqid` must exactly match a JBrowse
+`refName`. Complete configuration examples and the navigation/highlighting
+contract are in [Package integration](package-integration.md) and [JBrowse
+integration](jbrowse-integration.md).
+
+## Common errors and troubleshooting
+
+- **Database request returns `200` instead of `206`:** enable byte-range serving
+  and ensure a proxy or CDN does not strip the `Range` header.
+- **Database size mismatch:** update `sizeBytes` after regenerating or deploying
+  the ZIP; do not use the uncompressed SQLite size.
+- **CORS or `HEAD` failure:** allow the UI origin and expose range and length
+  headers. Test both `HEAD` and a small byte-range `GET`.
+- **Search result does not navigate:** make the indexed GFF `seqid` and JBrowse
+  assembly reference names identical.
+- **Worker or WASM asset returns HTML/404:** retain the package's Vite worker and
+  WASM handling and deploy generated assets without rewriting them to the app
+  shell.
+- **No search results:** verify that the database was produced by a compatible
+  schema version and that the query uses the documented all-term prefix search
+  semantics.
+
 ## Browser support and E2E testing
 
 Chromium-based browsers and Firefox are the supported/tested browsers. CI runs

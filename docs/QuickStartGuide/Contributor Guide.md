@@ -1,5 +1,33 @@
 # Quick Start / Contributor Guide
 
+## Repository structure
+
+| Path | Responsibility |
+|---|---|
+| `scripts/` | GFF parser, SQLite indexer, schema SQL and version configuration. |
+| `ui-component/` | React search UI, Web Worker, SQLite WASM integration, JBrowse view, tests and package build. |
+| `examples/package-consumer/` | Clean external-style consumer used to validate the packed tarball. |
+| `sample_data/` | Small committed fixtures and demonstration assets. |
+| `tests/` | Python indexer, schema, search and benchmark tests. |
+| `benchmark/` | Dataset manifest, profiling harness, machine-readable evidence and reports. |
+| `docs/` | User, contributor, architecture, schema and integration contracts. |
+
+## Indexer and frontend data contract
+
+The indexer writes a ZIP containing SQLite tables defined by
+`scripts/database.py`.
+`database_metadata.schema_version` is the compatibility gate. The worker checks
+that version before querying `feature_meta` and the contentless `search_fts`
+table. Search rows expose stable feature coordinates and display metadata;
+pagination uses monotonically increasing rowids. The component must not depend
+on undocumented tables, indexer temporary files or insertion implementation
+details beyond this contract.
+
+When changing either side, update the schema reference, Python verification,
+worker compatibility check, TypeScript result types, fixed search fixture and
+package-consumer journey together. See [Schema Reference](../schema-reference.md)
+and [Architecture](../architecture.md) for the field-level and runtime contracts.
+
 ## Set up a development checkout
 
 Requirements: Python 3.10 or newer, Node.js 22.x, and npm. The indexer
@@ -149,3 +177,46 @@ GFF and `.tbi`, FASTA and `.fai`, plus a generated SQLite database. Sequence
 names in the GFF and FASTA must match exactly because search-result `seqid` is
 passed directly to JBrowse as `refName`. Configure deployment with raw byte
 serving, HTTP Range support, and CORS as needed.
+
+## Regenerate fixtures
+
+Rebuild the bundled search database only when an intentional indexer or fixture
+change requires it:
+
+```powershell
+.venv\Scripts\python.exe scripts\indexer.py `
+  sample_data\MGYG000490722\MGYG000490722.gff.gz
+```
+
+Then run the Python suite and the Chromium search-to-JBrowse test. Review the
+database checksum and size rather than committing it accidentally. Browser test
+fixtures under `ui-component/e2e/fixtures/` are source-controlled inputs; update
+them explicitly with the test that consumes them and document their provenance.
+
+## Update the schema safely
+
+1. Decide whether the change is backward compatible. Any table/column meaning
+   change or required new field needs a schema-version increment.
+2. Update the schema SQL in `scripts/database.py`, the version constant in
+   `scripts/config.py`, and `docs/schema-reference.md` in the same change.
+3. Update indexer post-build verification and the worker's supported-version
+   check. Do not silently accept an unknown version.
+4. Regenerate a fixture and run Python tests, frontend tests, package-consumer
+   tests and the benchmark smoke run.
+5. For a breaking version, document migration or regeneration instructions and
+   retain a clear error for older databases. Generated databases are immutable;
+   prefer regeneration from the source GFF over in-place mutation.
+
+## Release and versioning
+
+The component is currently private and distributed as a reviewed local tarball.
+Use semantic versioning for its public props, exported types, CSS entry point
+and runtime asset contract. Record user-visible changes in
+`ui-component/CHANGELOG.md`, build with `npm run build:lib`, inspect
+`npm run pack:local`, and validate the tarball with `npm run test:package`.
+
+Before a release, run the validation matrix above, Firefox when browser-sensitive
+code changed, and the final benchmark when performance-relevant code changed.
+Tag from a clean commit only after documentation and schema compatibility are
+current. Publishing to a registry remains out of scope until maintainers remove
+`private: true` and approve registry, provenance and release automation.
