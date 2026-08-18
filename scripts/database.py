@@ -49,8 +49,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
     annotations,
     content='',
     tokenize='unicode61 tokenchars ''_.''',
-    detail=column,
-    columnsize=1{prefix_sql}
+    detail=none,
+    columnsize=0{prefix_sql}
 );
 """
 
@@ -149,20 +149,32 @@ class DatabaseVerifier:
                 f"Row count mismatch: feature_meta has {meta_count}, expected {expected_rows}"
             )
 
-        # 2. feature_meta and search_fts have the same row counts
-        fts_count = self.cur.execute("SELECT count(*) FROM search_fts").fetchone()[0]
-        if meta_count != fts_count:
-            errors.append(
-                f"Table count mismatch: feature_meta={meta_count}, search_fts={fts_count}"
-            )
-
-        # 3. Max rowid is synced between tables
+        # 2-3. Compare FTS row counts and max rowids when supported.
+        # Contentless FTS5 tables configured with detail=none and columnsize=0
+        # reject non-MATCH scans, so the internal integrity check below is the
+        # supported validation for that configuration.
         meta_max = self.cur.execute("SELECT max(rowid) FROM feature_meta").fetchone()[0]
-        fts_max = self.cur.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
-        if meta_max != fts_max:
-            errors.append(
-                f"Rowid desync: feature_meta max={meta_max}, search_fts max={fts_max}"
+        fts_scan_skipped = False
+        try:
+            fts_count = self.cur.execute("SELECT count(*) FROM search_fts").fetchone()[0]
+            if meta_count != fts_count:
+                errors.append(
+                    f"Table count mismatch: feature_meta={meta_count}, search_fts={fts_count}"
+                )
+
+            fts_max = self.cur.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
+            if meta_max != fts_max:
+                errors.append(
+                    f"Rowid desync: feature_meta max={meta_max}, search_fts max={fts_max}"
+                )
+        except sqlite3.OperationalError as exc:
+            if "does not support scanning" not in str(exc):
+                raise
+            logger.info(
+                "Skipping non-MATCH FTS row scans; contentless detail=none "
+                "tables do not support scanning."
             )
+            fts_scan_skipped = True
 
         # 4. No missing feature IDs
         null_ids = self.cur.execute(
@@ -216,4 +228,10 @@ class DatabaseVerifier:
             )
             raise RuntimeError(error_msg)
 
-        logger.info(f"Verification passed: 8 checks OK ({meta_count:,} rows)")
+        if fts_scan_skipped:
+            logger.info(
+                f"Verification passed: 6 checks OK; 2 FTS scan checks skipped "
+                f"for contentless detail=none ({meta_count:,} rows)"
+            )
+        else:
+            logger.info(f"Verification passed: 8 checks OK ({meta_count:,} rows)")

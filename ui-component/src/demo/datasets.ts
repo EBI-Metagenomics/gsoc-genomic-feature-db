@@ -12,10 +12,10 @@ export const DEMO_DATASETS: Record<string, GenomicDataset> = {
     databaseSizeBytes:
       benchmarkDatabaseUrl && Number.isSafeInteger(benchmarkDatabaseSize)
         ? benchmarkDatabaseSize
-        : 18_558_976,
+        : 15_581_184,
     databaseSha256: benchmarkDatabaseUrl
       ? undefined
-      : "6f486bd3ebcad27a4f1e7968fc06fafac349ed21889058ff9e72e2b67ce26e28",
+      : "cc38d6ca17b78717037bd4486daaad620f57c1b0f9b578de45d8b81a55cff316",
     fastaUrl: `${baseUrl}MGYG000490722/MGYG000490722.fna`,
     fastaIndexUrl: `${baseUrl}MGYG000490722/MGYG000490722.fna.fai`,
     gffUrl: `${baseUrl}MGYG000490722/MGYG000490722.gff.gz`,
