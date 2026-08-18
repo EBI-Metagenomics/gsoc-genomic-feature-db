@@ -1,0 +1,467 @@
+{
+  "benchmark_phase": "final",
+  "configuration": {
+    "limit": null,
+    "prefix_index": false,
+    "sample_interval_seconds": 0.05,
+    "vacuum": true
+  },
+  "created_at": "2026-08-18T07:59:04.893247+00:00",
+  "datasets": [
+    {
+      "description": "Bundled MGnify metagenome used by the interactive demonstration.",
+      "id": "MGYG000490722",
+      "index_run": {
+        "command": [
+          ".venv/Scripts/python.exe",
+          "scripts/indexer.py",
+          "sample_data/MGYG000490722.gff.gz",
+          "--output",
+          "benchmark-work\\issue13-none0-rerun\\small\\MGYG000490722.db.zip",
+          "--stats-json",
+          "benchmark-work\\issue13-none0-rerun\\small\\indexer-stats.json"
+        ],
+        "completed_at": "2026-08-18T07:59:07.577228+00:00",
+        "diagnostic_logs": {
+          "stderr": "benchmark-work/issue13-none0-rerun/small/indexer.stderr.log",
+          "stdout": "benchmark-work/issue13-none0-rerun/small/indexer.stdout.log"
+        },
+        "external_wall_seconds": 2.028982,
+        "indexer": {
+          "completed_at": "2026-08-18T07:59:07.383030+00:00",
+          "configuration": {
+            "analyze": true,
+            "batch_size": 150000,
+            "fts_optimize": true,
+            "limit": null,
+            "prefix_index": false,
+            "vacuum": true,
+            "verification_checks": 8
+          },
+          "counts": {
+            "distinct_sequences": 193,
+            "feature_rows_examined": 179889,
+            "indexed_rows": 134741,
+            "skipped_rows": 45148
+          },
+          "duration_seconds": 1.715658,
+          "environment": {
+            "generator_version": "1.0.0",
+            "git_commit": "230ff05bd1ce8a74f1f22ff98fd17e8324a522d6",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "python_version": "3.13.14",
+            "schema_version": 1,
+            "sqlite_version": "3.50.4"
+          },
+          "feature_type_distribution": {
+            "CDS": 45148,
+            "gene": 12041,
+            "intron": 29035,
+            "mRNA": 16147,
+            "ncRNA": 22,
+            "rRNA": 23,
+            "start_codon": 16128,
+            "stop_codon": 16115,
+            "tRNA": 82
+          },
+          "inputs": [
+            {
+              "path": "sample_data/MGYG000490722.gff.gz",
+              "sha256": "c9b09f69299808a44aa0f68587b879c055181ffbf44f37a67a9be3d36ecf47f7",
+              "size_bytes": 2647569
+            }
+          ],
+          "output": {
+            "path": "benchmark-work/issue13-none0-rerun/small/MGYG000490722.db.zip",
+            "sha256": "cc38d6ca17b78717037bd4486daaad620f57c1b0f9b578de45d8b81a55cff316",
+            "size_bytes": 15581184
+          },
+          "skip_reasons": {
+            "filtered_low_value": 45148,
+            "filtered_unidentified": 0,
+            "malformed_columns": 0,
+            "malformed_coordinates": 0
+          },
+          "started_at": "2026-08-18T07:59:05.667370+00:00",
+          "stats_schema_version": 1
+        },
+        "peak_process_tree_rss_bytes": 134090752,
+        "return_code": 0,
+        "sample_interval_seconds": 0.05,
+        "started_at": "2026-08-18T07:59:05.547153+00:00"
+      },
+      "input": {
+        "compressed_bytes": 2647569,
+        "sha256": "c9b09f69299808a44aa0f68587b879c055181ffbf44f37a67a9be3d36ecf47f7",
+        "uncompressed_bytes": 25425052
+      },
+      "input_path": "sample_data/MGYG000490722.gff.gz",
+      "role": "small",
+      "source_characteristics": {
+        "annotation_field_distribution": {
+          "anticodon": 82,
+          "cog": 43,
+          "dbcan_prot_family": 2558,
+          "ec_number": 1525,
+          "eggnog": 44,
+          "gene_biotype": 82,
+          "id": 179889,
+          "inference": 45,
+          "interpro": 34901,
+          "isotype": 82,
+          "kegg": 27,
+          "locus_tag": 45,
+          "name": 82,
+          "ncrna_class": 22,
+          "parent": 167721,
+          "pfam": 28298,
+          "product": 45193,
+          "product_source": 36432,
+          "rfam": 45,
+          "substrate_dbcan-sub": 2558
+        },
+        "complete": true,
+        "distinct_sequences": 193,
+        "feature_rows": 179889,
+        "feature_type_distribution": {
+          "CDS": 45148,
+          "exon": 45148,
+          "gene": 12041,
+          "intron": 29035,
+          "mRNA": 16147,
+          "ncRNA": 22,
+          "rRNA": 23,
+          "start_codon": 16128,
+          "stop_codon": 16115,
+          "tRNA": 82
+        },
+        "malformed_rows": 0,
+        "record_limit": null,
+        "stopped_at_fasta": false
+      },
+      "source_url": "https://raw.githubusercontent.com/EBI-Metagenomics/gsoc-genomic-feature-db/7ac4e389f2e2a9543fcc87e69e7c3ce298e35dab/sample_data/MGYG000490722.gff.gz"
+    },
+    {
+      "description": "NCBI RefSeq Drosophila melanogaster Release 6 plus ISO1 MT annotation.",
+      "id": "GCF_000001215.4",
+      "index_run": {
+        "command": [
+          ".venv/Scripts/python.exe",
+          "scripts/indexer.py",
+          "sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+          "--output",
+          "benchmark-work\\issue13-none0-rerun\\medium\\GCF_000001215.4.db.zip",
+          "--stats-json",
+          "benchmark-work\\issue13-none0-rerun\\medium\\indexer-stats.json"
+        ],
+        "completed_at": "2026-08-18T07:59:21.547009+00:00",
+        "diagnostic_logs": {
+          "stderr": "benchmark-work/issue13-none0-rerun/medium/indexer.stderr.log",
+          "stdout": "benchmark-work/issue13-none0-rerun/medium/indexer.stdout.log"
+        },
+        "external_wall_seconds": 9.507192,
+        "indexer": {
+          "completed_at": "2026-08-18T07:59:21.366599+00:00",
+          "configuration": {
+            "analyze": true,
+            "batch_size": 150000,
+            "fts_optimize": true,
+            "limit": null,
+            "prefix_index": false,
+            "vacuum": true,
+            "verification_checks": 8
+          },
+          "counts": {
+            "distinct_sequences": 1870,
+            "feature_rows_examined": 414876,
+            "indexed_rows": 414876,
+            "skipped_rows": 0
+          },
+          "duration_seconds": 9.236944,
+          "environment": {
+            "generator_version": "1.0.0",
+            "git_commit": "230ff05bd1ce8a74f1f22ff98fd17e8324a522d6",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "python_version": "3.13.14",
+            "schema_version": 1,
+            "sqlite_version": "3.50.4"
+          },
+          "feature_type_distribution": {
+            "CDS": 163319,
+            "RNase_MRP_RNA": 1,
+            "RNase_P_RNA": 2,
+            "SRP_RNA": 2,
+            "antisense_RNA": 621,
+            "exon": 190710,
+            "gene": 17537,
+            "lnc_RNA": 2374,
+            "mRNA": 30802,
+            "miRNA": 485,
+            "mobile_genetic_element": 5734,
+            "ncRNA": 60,
+            "primary_transcript": 266,
+            "pseudogene": 339,
+            "rRNA": 134,
+            "region": 1870,
+            "sequence_feature": 1,
+            "snRNA": 32,
+            "snoRNA": 270,
+            "tRNA": 317
+          },
+          "inputs": [
+            {
+              "path": "sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+              "sha256": "9a372f10f86f4fe4222d070a101716b7565affdd6cb96efae249e8afa3b2c726",
+              "size_bytes": 8688226
+            }
+          ],
+          "output": {
+            "path": "benchmark-work/issue13-none0-rerun/medium/GCF_000001215.4.db.zip",
+            "sha256": "649d9ec8bacee01412c9514adb11bc189f63694d8a2b8044db8a554378c4ea24",
+            "size_bytes": 114823168
+          },
+          "skip_reasons": {
+            "filtered_low_value": 0,
+            "filtered_unidentified": 0,
+            "malformed_columns": 0,
+            "malformed_coordinates": 0
+          },
+          "started_at": "2026-08-18T07:59:12.129653+00:00",
+          "stats_schema_version": 1
+        },
+        "peak_process_tree_rss_bytes": 420806656,
+        "return_code": 0,
+        "sample_interval_seconds": 0.05,
+        "started_at": "2026-08-18T07:59:12.038871+00:00"
+      },
+      "input": {
+        "compressed_bytes": 8688226,
+        "sha256": "9a372f10f86f4fe4222d070a101716b7565affdd6cb96efae249e8afa3b2c726",
+        "uncompressed_bytes": 164988613
+      },
+      "input_path": "sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+      "role": "medium",
+      "source_characteristics": {
+        "annotation_field_distribution": {
+          "chromosome": 1869,
+          "codons": 2,
+          "cyt_map": 17690,
+          "dbxref": 414876,
+          "description": 10244,
+          "end_range": 1843,
+          "exception": 3645,
+          "exon_number": 563,
+          "gbkey": 414876,
+          "gen_map": 17687,
+          "gene": 407271,
+          "gene_biotype": 17876,
+          "gene_synonym": 17876,
+          "genome": 1870,
+          "genotype": 1869,
+          "id": 414876,
+          "inference": 485,
+          "is_circular": 1,
+          "locus_tag": 407271,
+          "map": 645,
+          "mobile_element_type": 5734,
+          "mol_type": 1870,
+          "name": 217591,
+          "note": 228239,
+          "number": 563,
+          "old_locus_tag": 789,
+          "orig_protein_id": 214429,
+          "orig_transcript_id": 388152,
+          "parent": 389395,
+          "part": 136,
+          "partial": 4423,
+          "product": 388806,
+          "protein_id": 163319,
+          "pseudo": 971,
+          "start_range": 1605,
+          "transcript_id": 223815,
+          "transl_except": 3564,
+          "transl_table": 13
+        },
+        "complete": true,
+        "distinct_sequences": 1870,
+        "feature_rows": 414876,
+        "feature_type_distribution": {
+          "CDS": 163319,
+          "RNase_MRP_RNA": 1,
+          "RNase_P_RNA": 2,
+          "SRP_RNA": 2,
+          "antisense_RNA": 621,
+          "exon": 190710,
+          "gene": 17537,
+          "lnc_RNA": 2374,
+          "mRNA": 30802,
+          "miRNA": 485,
+          "mobile_genetic_element": 5734,
+          "ncRNA": 60,
+          "primary_transcript": 266,
+          "pseudogene": 339,
+          "rRNA": 134,
+          "region": 1870,
+          "sequence_feature": 1,
+          "snRNA": 32,
+          "snoRNA": 270,
+          "tRNA": 317
+        },
+        "malformed_rows": 0,
+        "record_limit": null,
+        "stopped_at_fasta": false
+      },
+      "source_url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/215/GCF_000001215.4_Release_6_plus_ISO1_MT/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz"
+    },
+    {
+      "description": "GENCODE v49 comprehensive human GRCh38 annotation including patches, haplotypes and scaffolds.",
+      "id": "GENCODE-v49-GRCh38",
+      "index_run": {
+        "command": [
+          ".venv/Scripts/python.exe",
+          "scripts/indexer.py",
+          "sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+          "--output",
+          "benchmark-work\\issue13-none0-rerun\\large\\GENCODE-v49-GRCh38.db.zip",
+          "--stats-json",
+          "benchmark-work\\issue13-none0-rerun\\large\\indexer-stats.json"
+        ],
+        "completed_at": "2026-08-18T08:03:06.133609+00:00",
+        "diagnostic_logs": {
+          "stderr": "benchmark-work/issue13-none0-rerun/large/indexer.stderr.log",
+          "stdout": "benchmark-work/issue13-none0-rerun/large/indexer.stdout.log"
+        },
+        "external_wall_seconds": 141.410151,
+        "indexer": {
+          "completed_at": "2026-08-18T08:03:05.951687+00:00",
+          "configuration": {
+            "analyze": true,
+            "batch_size": 150000,
+            "fts_optimize": true,
+            "limit": null,
+            "prefix_index": false,
+            "vacuum": true,
+            "verification_checks": 8
+          },
+          "counts": {
+            "distinct_sequences": 528,
+            "feature_rows_examined": 8060457,
+            "indexed_rows": 8060457,
+            "skipped_rows": 0
+          },
+          "duration_seconds": 141.141348,
+          "environment": {
+            "generator_version": "1.0.0",
+            "git_commit": "230ff05bd1ce8a74f1f22ff98fd17e8324a522d6",
+            "platform": "Windows-11-10.0.26200-SP0",
+            "python_version": "3.13.14",
+            "schema_version": 1,
+            "sqlite_version": "3.50.4"
+          },
+          "feature_type_distribution": {
+            "CDS": 2364762,
+            "exon": 3823521,
+            "five_prime_UTR": 441410,
+            "gene": 86369,
+            "start_codon": 231248,
+            "stop_codon": 223936,
+            "stop_codon_redefined_as_selenocysteine": 131,
+            "three_prime_UTR": 355340,
+            "transcript": 533740
+          },
+          "inputs": [
+            {
+              "path": "sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+              "sha256": "d4765904062c657b8cc654547cb4a27a586452b669f2fb174e35ea52191e983f",
+              "size_bytes": 123771820
+            }
+          ],
+          "output": {
+            "path": "benchmark-work/issue13-none0-rerun/large/GENCODE-v49-GRCh38.db.zip",
+            "sha256": "97af5347019edddd1caa2175156963103bf23372555361cb46b39c81e220bc69",
+            "size_bytes": 1089134592
+          },
+          "skip_reasons": {
+            "filtered_low_value": 0,
+            "filtered_unidentified": 0,
+            "malformed_columns": 0,
+            "malformed_coordinates": 0
+          },
+          "started_at": "2026-08-18T08:00:44.810336+00:00",
+          "stats_schema_version": 1
+        },
+        "peak_process_tree_rss_bytes": 1730969600,
+        "return_code": 0,
+        "sample_interval_seconds": 0.05,
+        "started_at": "2026-08-18T08:00:44.722576+00:00"
+      },
+      "input": {
+        "compressed_bytes": 123771820,
+        "sha256": "d4765904062c657b8cc654547cb4a27a586452b669f2fb174e35ea52191e983f",
+        "uncompressed_bytes": 3477564032
+      },
+      "input_path": "sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+      "role": "large",
+      "source_characteristics": {
+        "annotation_field_distribution": {
+          "artif_dupl": 19,
+          "ccdsid": 2514247,
+          "exon_id": 7440217,
+          "exon_number": 7440217,
+          "gene_id": 8060457,
+          "gene_name": 8060457,
+          "gene_type": 8060457,
+          "havana_gene": 7548111,
+          "havana_transcript": 2842453,
+          "hgnc_id": 7466768,
+          "id": 8060457,
+          "level": 8060457,
+          "ont": 47465,
+          "parent": 7974088,
+          "protein_id": 6579985,
+          "tag": 7433837,
+          "transcript_id": 7974088,
+          "transcript_name": 7974088,
+          "transcript_support_level": 2695378,
+          "transcript_type": 7974088
+        },
+        "complete": true,
+        "distinct_sequences": 528,
+        "feature_rows": 8060457,
+        "feature_type_distribution": {
+          "CDS": 2364762,
+          "exon": 3823521,
+          "five_prime_UTR": 441410,
+          "gene": 86369,
+          "start_codon": 231248,
+          "stop_codon": 223936,
+          "stop_codon_redefined_as_selenocysteine": 131,
+          "three_prime_UTR": 355340,
+          "transcript": 533740
+        },
+        "malformed_rows": 0,
+        "record_limit": null,
+        "stopped_at_fasta": false
+      },
+      "source_url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz"
+    }
+  ],
+  "environment": {
+    "cpu_frequency_mhz": 3040.0,
+    "logical_cpu_count": 16,
+    "machine": "AMD64",
+    "operating_system": "Windows",
+    "operating_system_release": "11",
+    "physical_cpu_count": 8,
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 116 Stepping 1, AuthenticAMD",
+    "psutil_version": "7.0.0",
+    "python_executable": ".venv/Scripts/python.exe",
+    "python_version": "3.13.14",
+    "total_memory_bytes": 16312225792
+  },
+  "input_mode": "manifest",
+  "manifest": "benchmark/datasets.json",
+  "result_schema_version": 1,
+  "run_type": "baseline"
+}
