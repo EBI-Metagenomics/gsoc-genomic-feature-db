@@ -27,7 +27,7 @@ the independent tarball fixture has a
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | [Schema reference](schema-reference.md)             | SQLite schema version, tables, metadata, and compatibility policy.                       |
 | [Search quality](search-quality.md)                 | Search semantics, fixed quality cases, pagination, performance targets, and limitations. |
-| [Advanced column search](advanced_column_search.md) | Rationale and internal behavior for FTS5 column-scoped search.                           |
+| [FTS configuration history](advanced_column_search.md) | Historical note on the retired column-scoped configuration and the current `none/0` choice. |
 | [Why not pure FTS](reason_not_using_pure_fts.md)    | Storage rationale for the two-table contentless FTS design.                              |
 
 The Python indexer has a focused [scripts README](../scripts/README.md). Browser

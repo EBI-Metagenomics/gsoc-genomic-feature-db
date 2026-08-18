@@ -64,8 +64,8 @@ class TestSchema:
         ).fetchone()[0]
         assert "content=''" in sql
         assert "unicode61 tokenchars ''_.''" in sql
-        assert "detail=column" in sql
-        assert "columnsize=1" in sql
+        assert "detail=none" in sql
+        assert "columnsize=0" in sql
         assert "prefix=" not in sql
 
     def test_no_secondary_indexes(self, conn):
@@ -119,6 +119,13 @@ class TestDataIntegrity:
         conn.execute("DROP TABLE database_metadata")
         with pytest.raises(RuntimeError, match="Database metadata check failed"):
             DatabaseVerifier(conn).verify(expected_rows)
+
+    def test_verifier_accepts_non_scannable_contentless_fts(self, conn):
+        expected_rows = conn.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
+
+        # detail=none with columnsize=0 intentionally rejects non-MATCH scans.
+        # DatabaseVerifier must still validate the index using FTS5's integrity check.
+        DatabaseVerifier(conn).verify(expected_rows)
 
     def test_feature_count_positive(self, conn):
         count = conn.execute("SELECT count(*) FROM feature_meta").fetchone()[0]

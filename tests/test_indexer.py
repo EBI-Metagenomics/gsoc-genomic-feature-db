@@ -22,10 +22,20 @@ def write_gff(path: Path, *records: str) -> Path:
 
 
 class TestFTS:
-    def test_rowid_sync(self, conn):
-        meta_max = conn.execute("SELECT max(rowid) FROM feature_meta").fetchone()[0]
-        fts_max = conn.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
-        assert meta_max == fts_max
+    def test_rowid_sync_through_match_join(self, conn):
+        meta_rowid = conn.execute(
+            "SELECT rowid FROM feature_meta WHERE name = 'dnaA'"
+        ).fetchone()[0]
+        fts_rowids = conn.execute(
+            "SELECT m.rowid FROM search_fts f "
+            "JOIN feature_meta m ON m.rowid = f.rowid "
+            "WHERE search_fts MATCH 'dnaA*'"
+        ).fetchall()
+        assert (meta_rowid,) in fts_rowids
+
+    def test_detail_none_fts_rejects_non_match_scans(self, conn):
+        with pytest.raises(sqlite3.OperationalError, match="does not support scanning"):
+            conn.execute("SELECT count(*) FROM search_fts").fetchone()
 
     def test_search_by_name(self, conn):
         rows = conn.execute(
@@ -57,10 +67,10 @@ class TestFTS:
 
     def test_contentless_returns_null(self, conn):
         row = conn.execute(
-            "SELECT feature_id, name FROM search_fts WHERE rowid = 1"
+            "SELECT feature_id, name FROM search_fts WHERE search_fts MATCH 'dnaA*'"
         ).fetchone()
-        if row is not None:
-            assert row[0] is None or row[0] == ""
+        assert row is not None
+        assert row[0] is None or row[0] == ""
 
 
 class TestEdgeCases:

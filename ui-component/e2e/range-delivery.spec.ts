@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { runtimeAssets } from "./dataset";
+import { databaseSizeBytes, runtimeAssets } from "./dataset";
 
 const RANGE_END = 31;
 
@@ -35,6 +35,6 @@ test("rejects an unsatisfiable database range instead of returning the full file
   const response = await request.get(path, { headers: { Range: "bytes=999999999-" } });
 
   expect(response.status()).toBe(416);
-  expect(response.headers()["content-range"]).toBe("bytes */18558976");
+  expect(response.headers()["content-range"]).toBe(`bytes */${databaseSizeBytes}`);
   expect((await response.body()).byteLength).toBe(0);
 });

@@ -66,8 +66,8 @@ function currentDiagnostics(before = snapshotCounters(counters)): TransferDiagno
   return diagnosticsFrom(loadMode, counters, before, databaseSizeBytes, pageSizeBytes);
 }
 
-function execSearchOnce(query: string, column?: string, afterRowid?: number) {
-  const matchExpression = buildMatchExpression(query, column);
+function execSearchOnce(query: string, afterRowid?: number) {
+  const matchExpression = buildMatchExpression(query);
   if (matchExpression === null) {
     return { features: [], next_cursor: null, has_more: false };
   }
@@ -96,16 +96,16 @@ function execSearchOnce(query: string, column?: string, afterRowid?: number) {
   };
 }
 
-function execSearch(query: string, column?: string, afterRowid?: number): SearchPageResult {
+function execSearch(query: string, afterRowid?: number): SearchPageResult {
   const before = snapshotCounters(counters);
   const startedAt = performance.now();
   let page;
   try {
-    page = execSearchOnce(query, column, afterRowid);
+    page = execSearchOnce(query, afterRowid);
   } catch (error: unknown) {
     if (counters.lastFailure !== "transient") throw error;
     counters.retries += 1;
-    page = execSearchOnce(query, column, afterRowid);
+    page = execSearchOnce(query, afterRowid);
   }
   return {
     ...page,
@@ -185,8 +185,8 @@ async function initialiseDownloadedDatabase(
 }
 
 const workerApi = {
-  searchPage(query: string, column?: string, afterRowid?: number): SearchPageResult {
-    return execSearch(query, column, afterRowid);
+  searchPage(query: string, afterRowid?: number): SearchPageResult {
+    return execSearch(query, afterRowid);
   },
 
   getFeatureTypes(): string[] {

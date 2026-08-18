@@ -7,6 +7,8 @@ import {
   probeRangeSupport,
 } from "./databaseTransport";
 
+const DATABASE_SIZE_BYTES = 15_581_184;
+
 function sqliteBytes(length: number): Uint8Array {
   const bytes = new Uint8Array(length);
   bytes.set(new TextEncoder().encode("SQLite format 3\0"));
@@ -21,7 +23,7 @@ function rangeResponse(bytes = sqliteBytes(100), status = 206): Response {
     headers: {
       "Accept-Ranges": "bytes",
       "Content-Length": String(bytes.byteLength),
-      "Content-Range": "bytes 0-99/18558976",
+      "Content-Range": `bytes 0-99/${DATABASE_SIZE_BYTES}`,
       "Content-Type": "application/vnd.sqlite3",
       ETag: '"database-v1"',
     },
@@ -35,14 +37,14 @@ describe("probeRangeSupport", () => {
 
     const result = await probeRangeSupport(
       "/features.db",
-      { expectedSizeBytes: 18_558_976 },
+      { expectedSizeBytes: DATABASE_SIZE_BYTES },
       counters,
       undefined,
       fetchMock,
     );
 
     expect(result).toMatchObject({
-      databaseSizeBytes: 18_558_976,
+      databaseSizeBytes: DATABASE_SIZE_BYTES,
       pageSizeBytes: 4096,
       validator: '"database-v1"',
     });

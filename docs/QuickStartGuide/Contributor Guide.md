@@ -108,9 +108,9 @@ Known limitations are deliberate parts of this design:
 
 - There is no raw Boolean, phrase, NEAR, fuzzy, stemming, or strict exact-match
   query mode.
-- There is no production field selector, although the current `detail=column`
-  schema retains an internal allow-listed column scope for verification and
-  possible future use.
+- There is no production field selector. The current `detail=none` schema
+  intentionally supports all-field prefix search only; adding field-scoped
+  search would require a rebuilt database with a different FTS detail setting.
 - BM25 relevance ranking is not used. Broad BM25 queries must score and sort the
   complete matching set before applying a page limit, increasing HTTP Range
   traffic and search latency compared with rowid keyset pagination.
@@ -123,7 +123,7 @@ Known limitations are deliberate parts of this design:
 
 Enabling phrase or proximity queries would require positional token data such
 as FTS5 `detail=full`. That would make generated databases and browser downloads
-materially larger than the current `detail=column` design. Fuzzy or stemming
+materially larger than the current `detail=none` design. Fuzzy or stemming
 support would require additional tokenizer or index complexity. Exposing raw FTS
 syntax would also introduce user-visible parsing errors and a more difficult
 escaping and compatibility contract. These costs matter because SQLite pages

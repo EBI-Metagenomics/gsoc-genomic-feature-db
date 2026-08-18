@@ -85,10 +85,11 @@ has demonstrated that default, unweighted BM25 produces more useful genomic
 results. Relevance ranking should only return if user research defines useful
 ranking rules and shows that their benefit outweighs the remote-query cost.
 
-The current schema retains `columnsize=1`, but production ordering does not use
-its BM25 length statistics. Testing `detail=column, columnsize=0` in isolation is
-a separate database-size optimization; it is not part of this search-quality
-change because existing comparisons changed both settings together.
+The current schema uses `detail=none, columnsize=0`. Production performs an
+all-field prefix search and orders by stable rowid, so it does not need
+column-scoped match metadata or BM25 document-length statistics. The three-way
+benchmark comparison documents the trade-off against the earlier `column/1` and
+`column/0` configurations.
 
 ## Performance target and responsiveness
 
@@ -108,7 +109,8 @@ query time for loaded pages, not a global count or a complete network benchmark.
 - No strict exact-match mode; complete identifiers retain prefix semantics.
 - No phrase, fuzzy, stemming, or user-authored boolean-query mode.
 - No relevance ranking; results follow stable ingestion order.
-- No production field selector, despite internal column-scoped support.
+- No production field selector or column-scoped query mode; the selected
+  `detail=none` database intentionally supports all-field search only.
 - No global match total in the UI; counts refer to loaded rows.
 - Indexed annotation values are subject to the indexer's per-tag and length caps.
 - Performance depends on hosting, Range-request support, browser cache state, and

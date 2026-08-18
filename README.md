@@ -131,7 +131,7 @@ and sequence diagrams.
 | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
 | `feature_id`  | ✅      | Identifier search                                                                                                |
 | `name`        | ✅      | Gene name search                                                                                                 |
-| `biotype`     | ✅      | Column-targeted filtering (`biotype:protein_coding`)                                                             |
+| `biotype`     | ✅      | Biological classification search                                                                                |
 | `description` | ✅      | Keyword search in descriptions                                                                                   |
 | `annotations` | ✅      | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
 
@@ -148,8 +148,8 @@ for the complete data contract and rebuild-based compatibility policy.
 | Setting      | Value                       | Why                                                                                               |
 | ------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
 | `content`    | `''` (contentless)          | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size.        |
-| `detail`     | `column`                    | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`.                 |
-| `columnsize` | `1`                         | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
+| `detail`     | `none`                      | Current UI uses all-field prefix search, so column and position metadata are unnecessary.          |
+| `columnsize` | `0`                         | BM25 document-length statistics are unused because results use deterministic rowid ordering.       |
 | `tokenize`   | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens.                          |
 
 ### Why Contentless + Two Tables?
@@ -243,7 +243,7 @@ gsoc-genomic-feature-db/
 │   ├── README.md                       # Documentation index
 │   ├── schema-reference.md            # Full schema + FTS5 config docs
 │   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
-│   ├── advanced_column_search.md      # detail=column rationale
+│   ├── advanced_column_search.md      # FTS configuration history
 │   ├── search-quality.md              # Search semantics, quality, and targets
 │   └── plan.md                        # GSoC timeline + WBS
 │
@@ -403,7 +403,7 @@ query and does not represent totals across every database match.
 | #   | Decision                                        | Alternatives Considered          | Rationale                                                                                                                                |
 | --- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **Contentless FTS5**                            | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size.                                                                         |
-| 2   | **`detail=column` retained in the current DB**  | `detail=none`, `detail=full`     | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
+| 2   | **`detail=none`, `columnsize=0` in the current DB** | `detail=column`, `detail=full`; `columnsize=1` | Current UI uses all-field prefix search and stable rowid paging, so FTS column detail and BM25 size metadata are unnecessary. |
 | 3   | **Two-table design**                            | Single FTS5 table                | Separate display (native types, `functional_summary`) from search (FTS only).                                                            |
 | 4   | **HTTP VFS (Range requests)**                   | Download entire DB upfront       | On-demand page fetching — only query-touched pages are fetched.                                                                          |
 | 5   | **Web Worker + Comlink**                        | Main-thread SQLite               | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI.                                                              |

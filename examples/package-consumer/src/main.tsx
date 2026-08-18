@@ -12,9 +12,9 @@ const accession = "MGYG000490722";
 const dataset: GenomicDataset = {
   accession,
   databaseUrl: `/${accession}/${accession}.db.zip`,
-  databaseSizeBytes: 18_558_976,
+  databaseSizeBytes: 15_581_184,
   databaseSha256:
-    "6f486bd3ebcad27a4f1e7968fc06fafac349ed21889058ff9e72e2b67ce26e28",
+    "cc38d6ca17b78717037bd4486daaad620f57c1b0f9b578de45d8b81a55cff316",
   fastaUrl: `/${accession}/${accession}.fna`,
   fastaIndexUrl: `/${accession}/${accession}.fna.fai`,
   gffUrl: `/${accession}/${accession}.gff.gz`,

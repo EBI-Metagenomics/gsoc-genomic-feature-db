@@ -164,8 +164,8 @@ import "genomic-feature-db-component/styles.css";
 const dataset: GenomicDataset = {
   accession: "MGYG000490722",
   databaseUrl: "/data/MGYG000490722.db.zip",
-  databaseSizeBytes: 18_558_976,
-  databaseSha256: "6f486bd3ebcad27a4f1e7968fc06fafac349ed21889058ff9e72e2b67ce26e28",
+  databaseSizeBytes: 15_581_184,
+  databaseSha256: "cc38d6ca17b78717037bd4486daaad620f57c1b0f9b578de45d8b81a55cff316",
   fastaUrl: "/data/MGYG000490722.fna",
   fastaIndexUrl: "/data/MGYG000490722.fna.fai",
   gffUrl: "/data/MGYG000490722.gff.gz",

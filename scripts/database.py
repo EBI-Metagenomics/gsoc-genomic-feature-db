@@ -156,13 +156,17 @@ class DatabaseVerifier:
         meta_max = self.cur.execute("SELECT max(rowid) FROM feature_meta").fetchone()[0]
         fts_scan_skipped = False
         try:
-            fts_count = self.cur.execute("SELECT count(*) FROM search_fts").fetchone()[0]
+            fts_count = self.cur.execute("SELECT count(*) FROM search_fts").fetchone()[
+                0
+            ]
             if meta_count != fts_count:
                 errors.append(
                     f"Table count mismatch: feature_meta={meta_count}, search_fts={fts_count}"
                 )
 
-            fts_max = self.cur.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
+            fts_max = self.cur.execute("SELECT max(rowid) FROM search_fts").fetchone()[
+                0
+            ]
             if meta_max != fts_max:
                 errors.append(
                     f"Rowid desync: feature_meta max={meta_max}, search_fts max={fts_max}"

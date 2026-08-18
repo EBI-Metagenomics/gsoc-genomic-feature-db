@@ -79,9 +79,8 @@ def test_fixed_mgyg_search_quality_matrix():
         connection.close()
 
 
-def test_column_specific_search_is_narrower_than_all_columns():
+def test_search_quality_matrix_uses_all_field_expressions():
     fixture = load_fixture()
-    cases = {case["id"]: case for case in fixture["cases"]}
 
-    assert cases["all_columns"]["expected_total"] > 0
-    assert cases["description_column"]["expected_total"] == 0
+    assert all(case.get("column") in (None,) for case in fixture["cases"])
+    assert all(" : (" not in case["match_expression"] for case in fixture["cases"])
