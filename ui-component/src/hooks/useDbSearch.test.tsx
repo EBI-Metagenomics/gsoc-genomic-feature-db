@@ -174,7 +174,9 @@ describe("useDbSearch", () => {
     const proxy = createProxy();
     const firstSearch = deferred<SearchPageResult>();
     const secondSearch = deferred<SearchPageResult>();
-    proxy.searchPage.mockReturnValueOnce(firstSearch.promise).mockReturnValueOnce(secondSearch.promise);
+    proxy.searchPage
+      .mockReturnValueOnce(firstSearch.promise)
+      .mockReturnValueOnce(secondSearch.promise);
     workerProxies.push(proxy);
 
     const { result } = renderHook(() => useDbSearch("/features.db.zip"));
