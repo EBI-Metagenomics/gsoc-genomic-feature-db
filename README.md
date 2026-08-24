@@ -4,7 +4,10 @@
 
 > A serverless, local-first search interface that lets bioinformaticians query millions of genomic features directly in the browser, backed by a compact SQLite FTS5 database served via HTTP Range requests.
 
----
+## GSoC 2026 Final Report
+
+For a summary of the work completed during Google Summer of Code 2026, including project outcomes, implementation details, and contributions, see the [GSoC 2026 Final Report](GSoC_report.md).
+
 
 ## What This Project Is
 
