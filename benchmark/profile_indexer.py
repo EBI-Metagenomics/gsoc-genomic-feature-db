@@ -307,6 +307,12 @@ def main() -> int:
     parser.add_argument("--datasets", nargs="+", default=None)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
+        "--benchmark-phase",
+        choices=("baseline", "final"),
+        default="baseline",
+        help="Lifecycle phase recorded in the result (default: baseline).",
+    )
+    parser.add_argument(
         "--work-dir", type=Path, default=REPOSITORY_ROOT / "benchmark-work"
     )
     parser.add_argument("--python", default=sys.executable)
@@ -347,6 +353,7 @@ def main() -> int:
         result: dict[str, Any] = {
             "result_schema_version": RESULT_SCHEMA_VERSION,
             "run_type": run_type,
+            "benchmark_phase": args.benchmark_phase,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "input_mode": input_mode,
             "manifest": portable_path(manifest_path) if manifest_path else None,

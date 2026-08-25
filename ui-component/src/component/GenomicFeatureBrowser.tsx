@@ -2,8 +2,8 @@ import { useCallback, useState } from "react";
 
 import SearchBar from "./SearchBar";
 import DatabaseStatus from "./DatabaseStatus";
+import GenomeView from "../genome-view/GenomeView";
 import { useDbSearch } from "../hooks/useDbSearch";
-import GenomicLinearView from "../jbrowse/GenomicLinearView";
 import type { GenomicFeature, GenomicFeatureBrowserProps } from "../types";
 
 function BrowserInstance({
@@ -31,7 +31,7 @@ function BrowserInstance({
   return (
     <section className={classes.join(" ")}>
       <DatabaseStatus {...searchState} expectedSizeBytes={dataset.databaseSizeBytes} />
-      <GenomicLinearView
+      <GenomeView
         dataset={dataset}
         maxHeight={browserHeight}
         selectedFeature={selectedFeature}

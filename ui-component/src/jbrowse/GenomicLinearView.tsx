@@ -31,6 +31,7 @@ function GenomicLinearViewInstance({
   const [navigatedLocation, setNavigatedLocation] = useState<{
     featureId: number;
     location: string;
+    highlightedInterval: string;
   } | null>(null);
 
   useEffect(() => {
@@ -53,7 +54,11 @@ function GenomicLinearViewInstance({
           .navToLocString(location, dataset.accession)
           .then(() => {
             if (active) {
-              setNavigatedLocation({ featureId: pendingFeature.id, location });
+              setNavigatedLocation({
+                featureId: pendingFeature.id,
+                location,
+                highlightedInterval: `${highlight.refName}:${highlight.start}..${highlight.end}`,
+              });
             }
           })
           .catch((caught: unknown) => {
@@ -87,6 +92,9 @@ function GenomicLinearViewInstance({
       data-accession={dataset.accession}
       data-visible-location={visibleLocation}
       data-highlighted-feature={highlightedFeature}
+      data-highlighted-interval={
+        visibleLocation ? navigatedLocation?.highlightedInterval : undefined
+      }
       data-annotation-track-active="true"
     >
       {navigationError && navigationError.featureId === selectedFeature?.id && (

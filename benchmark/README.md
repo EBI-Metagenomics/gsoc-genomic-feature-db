@@ -209,6 +209,81 @@ three-dataset acceptance criteria:
   --output benchmark\output\my-dataset-report.md
 ```
 
+## Issue 13 final comparison
+
+Issue 13 reuses the committed Issue 14 result files from commit
+`7ac4e389f2e2a9543fcc87e69e7c3ce298e35dab` as its baseline. Do not rerun that
+baseline in a different Node or browser environment. The production schema,
+indexing SQL and index configuration are unchanged; later indexer changes add
+structured measurement output without changing generated database content. The
+final indexer is measured once to satisfy the requirement for a fresh final
+measurement. Frontend and package code did change, so all three browser datasets
+must be measured again.
+
+From the repository root, run the complete final matrix:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File benchmark\run_issue13_final.ps1
+```
+
+The script requires Node `v26.4.0`, matching the committed browser baseline. It
+validates dataset checksums, records `benchmark_phase=final`, uses three cold and
+ten warm browser repetitions, and writes:
+
+- `benchmark/results/indexer-final.json`;
+- `benchmark/results/browser-small-final.json`;
+- `benchmark/results/browser-medium-final.json`;
+- `benchmark/results/browser-large-final.json`;
+- `benchmark/final-report.md`.
+
+The large GENCODE input expands to 3.48 GB, produces an approximately 1.31 GB
+database and reached about 1.9 GB peak RSS in the baseline. A fresh run is
+therefore intentionally manual. If indexing completed but a later browser run
+failed, rerun with `-SkipIndexer`. Use `-SkipBrowser` only when all three final
+browser result files already exist.
+
+To repeat the complete matrix without overwriting an earlier final result, use a
+short label. For example, a plugged-in Best-performance repeat writes separate
+`*-performance.json` files, `benchmark-work/issue13-final-performance/`, and
+`benchmark/final-report-performance.md`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File benchmark\run_issue13_final.ps1 `
+  -RunLabel performance
+```
+
+The comparator checks dataset IDs, checksums and sizes; indexer configuration;
+OS, Python and CPU topology; browser repetitions; query manifest; query matrix;
+and Node version. Browser patch versions are recorded but may differ because the
+installed Edge channel updates independently. A change greater than 20% is an
+investigation trigger, not an automatic product failure. Add explanations in a
+JSON file and rerun only the comparison:
+
+```json
+{
+  "regressions": {
+    "large.initial_load_p95": "Explain the observed result and supporting evidence."
+  },
+  "unexpected_results": [],
+  "limitations": []
+}
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File benchmark\run_issue13_final.ps1 `
+  -SkipIndexer -SkipBrowser -AnalysisPath benchmark\final-analysis.json
+```
+
+Metric keys needing explanations are printed by the comparator and included in
+the generated report. Mentor approval is required for a justified regression
+above 20%.
+
+For Issue 13, the authoritative controlled repeat is
+`final-report-performance.md`: its 3040 MHz CPU-frequency snapshot matches the
+committed baseline and no measured metric crossed the 20% regression threshold.
+An earlier lower-power run was discarded after its environmental effect was
+documented in `final-analysis-performance.json`; it is not acceptance evidence.
+
 ## Verification
 
 Benchmark-focused checks:

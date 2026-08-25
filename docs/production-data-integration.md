@@ -1,10 +1,13 @@
 # Production data integration
 
+For local tarball installation and the reusable component API, see
+[Local package integration](package-integration.md).
+
 ## Scope
 
 `sample_data/` is a versioned local fixture for development, tests, and the
 explicit bundled demonstration. It is not the production data source and is not
-copied by the normal `npm run build` command.
+copied by the package build (`npm run build` or `npm run build:lib`).
 
 The reusable browser component accepts one host-resolved `GenomicDataset`. It
 does not assume an EMBL-EBI filesystem layout or call an undocumented service.
@@ -73,13 +76,13 @@ from entering the search and JBrowse components.
 
 For each accession, publish:
 
-| Asset                              | Purpose                                                               |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| `{accession}.db.zip`               | Raw SQLite database queried through HTTP VFS; it is not a ZIP archive |
-| `{accession}.fna`                  | Reference sequence                                                    |
-| `{accession}.fna.fai`              | Index generated from the exact deployed FASTA                         |
-| `{accession}.gff.gz`               | BGZF-compressed annotations                                           |
-| `{accession}.gff.gz.tbi` or `.csi` | Index generated from the exact deployed GFF                           |
+| Asset                              | Purpose                                                                                                                    |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `{accession}.db.zip`               | Raw SQLite database queried through HTTP VFS; the filename discourages automatic HTTP compression and is not a ZIP archive |
+| `{accession}.fna`                  | Reference sequence                                                                                                         |
+| `{accession}.fna.fai`              | Index generated from the exact deployed FASTA                                                                              |
+| `{accession}.gff.gz`               | BGZF-compressed annotations                                                                                                |
+| `{accession}.gff.gz.tbi` or `.csi` | Index generated from the exact deployed GFF                                                                                |
 
 The SQLite, GFF, and FASTA sequence identifiers must agree exactly. Publication
 should be atomic: upload versioned files first, validate them, then expose the
@@ -103,8 +106,9 @@ it must not fall back to a full `200` response.
 Serve the raw database as `application/vnd.sqlite3`, `application/x-sqlite3`, or
 `application/octet-stream`. Do not apply `Content-Encoding` or intermediary
 content transformation to SQLite responses: byte offsets must address the exact
-published representation. The historical `.db.zip` suffix is a delivery name;
-the file is raw SQLite rather than a ZIP archive.
+published representation. The historical `.db.zip` suffix is a delivery name
+used to discourage automatic HTTP compression; the file is raw SQLite rather
+than a ZIP archive.
 
 When the application and data use different origins, configure at least:
 
@@ -149,18 +153,22 @@ datasets too large to hold completely in browser memory.
 
 From `ui-component/`:
 
-- `npm run build` creates the normal production frontend and excludes
-  `sample_data/`.
+- `npm run build` and `npm run build:lib` create the reusable package output and
+  exclude `sample_data/`.
 - `npm run build:demo` explicitly copies the local fixture into `dist/` for a
   self-contained demonstration.
-- `npm run dev` and `npm run preview` serve the fixture directly from the
-  workspace through development-only range middleware.
+- `npm run dev` serves the fixture directly from the workspace through
+  development-only range middleware.
+- `npm run preview` serves the current `dist/`; run `npm run build:demo` first
+  when previewing the self-contained repository demonstration.
 - `npm run deploy` intentionally uses `build:demo`, because that command deploys
   the repository demonstration rather than an EBI production instance.
 
-An EBI deployment should use `npm run build` and publish genomic assets through
-the approved data service. The host application should obtain or construct a
-`GenomicDataset` and pass it to `GenomicFeatureBrowser`.
+An EBI production application should install a reviewed package tarball (or a
+future approved registry release), build the host application, and publish the
+genomic assets through the approved data service. The host application obtains
+or constructs a `GenomicDataset` and passes it to `GenomicFeatureBrowser`. The
+package build is a library artifact; it is not a deployable EBI host application.
 
 ## Decisions still required from EBI
 

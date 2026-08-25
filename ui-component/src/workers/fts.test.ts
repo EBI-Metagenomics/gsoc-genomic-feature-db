@@ -30,15 +30,14 @@ describe("buildMatchExpression", () => {
     expect(buildMatchExpression("GCF_000001.4")).toBe('"GCF_000001.4"*');
   });
 
-  it("only applies allow-listed column scopes", () => {
-    expect(buildMatchExpression("kinase", "description")).toBe('description : ("kinase"*)');
-    expect(buildMatchExpression("kinase", "description) OR feature_id")).toBe('"kinase"*');
+  it("always builds an all-field expression", () => {
+    expect(buildMatchExpression("kinase")).toBe('"kinase"*');
   });
 
   it.each(searchQualityFixture.cases)(
     "builds the fixed MGYG expression for $id",
-    ({ query, column, match_expression }) => {
-      expect(buildMatchExpression(query, column ?? undefined)).toBe(match_expression);
+    ({ query, match_expression }) => {
+      expect(buildMatchExpression(query)).toBe(match_expression);
     },
   );
 });

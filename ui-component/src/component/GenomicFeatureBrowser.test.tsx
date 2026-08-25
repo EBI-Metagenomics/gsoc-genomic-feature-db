@@ -119,13 +119,29 @@ describe("GenomicFeatureBrowser", () => {
       }),
     );
 
-    render(<GenomicFeatureBrowser dataset={{ ...dataset, databaseSizeBytes: 18_558_976 }} />);
+    render(<GenomicFeatureBrowser dataset={{ ...dataset, databaseSizeBytes: 15_581_184 }} />);
     fireEvent.click(screen.getByRole("button", { name: "Retry connection" }));
     fireEvent.click(screen.getByRole("button", { name: /Download complete database/ }));
 
     expect(retry).toHaveBeenCalledOnce();
     expect(downloadFullDatabase).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: /17.7 MiB/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /14.9 MiB/ })).toBeTruthy();
+  });
+
+  it("labels result counts as loaded and reports whether another page exists", () => {
+    searchHook.mockReturnValue(searchState({ hasMore: true }));
+    const { rerender } = render(<GenomicFeatureBrowser dataset={dataset} />);
+
+    expect(document.querySelector(".cvf-search-meta > span[aria-hidden='true']")?.textContent).toBe(
+      "1 result loaded in 1.0 ms. More results are available.",
+    );
+
+    searchHook.mockReturnValue(searchState({ hasMore: false }));
+    rerender(<GenomicFeatureBrowser dataset={dataset} />);
+
+    expect(document.querySelector(".cvf-search-meta > span[aria-hidden='true']")?.textContent).toBe(
+      "1 result loaded in 1.0 ms. All matching results are loaded.",
+    );
   });
 
   it("labels result counts as loaded and reports whether another page exists", () => {

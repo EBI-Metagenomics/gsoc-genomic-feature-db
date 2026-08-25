@@ -224,6 +224,12 @@ node_modules
 *.tsbuildinfo
 ui-component/playwright-report/
 ui-component/test-results/
+ui-component/package-artifacts/
+ui-component/.npm-cache/
+examples/package-consumer/node_modules/
+examples/package-consumer/dist/
+examples/package-consumer/test-results/
+examples/package-consumer/playwright-report/
 sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz
 sample_data/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
 

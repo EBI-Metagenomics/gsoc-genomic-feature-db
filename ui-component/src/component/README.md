@@ -1,101 +1,146 @@
-# Search UI Components
+# Component internals
 
-The search interface is split into small, single-responsibility components, mirroring
-the `scripts/` backend conventions (a central config, terse one-liner comments, and
-manageable file sizes). `SearchBar.tsx` is the orchestrator; the other files are the
-pieces it composes.
+This directory contains the UI composed by the public `GenomicFeatureBrowser`
+package component. It documents implementation details for contributors; package
+installation, Vite configuration, and the supported runtime contract are documented
+in the [package README](../../README.md).
+
+The initial package intentionally exports the complete search-and-JBrowse experience.
+It does not export a search-only component, search hooks, worker APIs, or JBrowse state.
 
 ## Module map
 
-| File                     | Role                                                                                                        |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `SearchBar.tsx`          | Orchestrator — owns query state + the debounce timer, composes the form and table.                          |
-| `SearchForm.tsx`         | The all-fields search row: debounced input + submit button (stateless).                                     |
-| `ResultsTable.tsx`       | Sticky-header results table; delegates the Annotations column to `AnnotationCell`.                          |
-| `AnnotationBadges.tsx`   | The badge `AnnotationCell` / `AnnotationPopover` / `AnnotationLegend` components + the single-popover hook. |
-| `annotations/sources.ts` | Source catalogue data (badge letters, labels, colours) and the GFF-tag → source map.                        |
-| `annotations/parse.ts`   | Parses a `functional_summary` string into ordered, grouped sources.                                         |
-| `../config.ts`           | Central constants (query length, debounce, FTS allow-list, layout, etc.) shared across the UI and worker.   |
+| File                            | Role                                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `GenomicFeatureBrowser.tsx`     | Public wrapper that owns selection state and composes database status, the private genome view, and search UI.     |
+| `DatabaseStatus.tsx`            | Database initialization, transfer diagnostics, retry, and explicit complete-download fallback UI.                  |
+| `SearchBar.tsx`                 | Internal search orchestrator; owns query/debounce state and composes facets, results, pagination, and annotations. |
+| `SearchForm.tsx`                | Stateless all-fields search input and submit button.                                                               |
+| `FeatureTypeFacets.tsx`         | Displays feature-type counts for the results currently loaded in the browser.                                      |
+| `ResultsTable.tsx`              | Keyboard-accessible, sticky-header results table and feature-selection buttons.                                    |
+| `AnnotationBadges.tsx`          | Annotation cells, legend, popover, and the single-open-popover hook.                                               |
+| `annotations/sources.ts`        | Annotation source catalogue: badge letters, labels, colors, and GFF-tag mappings.                                  |
+| `annotations/parse.ts`          | Parses `functional_summary` into ordered annotation groups.                                                        |
+| `../genome-view/GenomeView.tsx` | Private domain boundary around the JBrowse implementation.                                                         |
+| `../config.ts`                  | Shared search, pagination, layout, and badge constants.                                                            |
 
-## Functionality overview
+## Composed UI
 
-### 1. User interface & search input
+`GenomicFeatureBrowser` renders, in order:
 
-- **Debounced querying**: input is debounced by `DEBOUNCE_MS` (200 ms) and a search only
-  runs once the query reaches `MIN_QUERY_LENGTH` (3 characters). Both values live in
-  `config.ts` and are shared with `useDbSearch` and `db.worker` so the thresholds never drift.
-- **All-fields search**: production searches feature IDs, names, biotypes,
-  descriptions, and functional annotations together; there is no field dropdown.
-- **Dynamic feedback**: loading spinner, query execution time (ms), rows loaded,
-  whether more results are available, and error banners. No global match total is
-  requested over HTTP VFS.
-- **Result visualization**: a table of `Feature ID` (the stable `feature_id`, with the
-  gene symbol as a muted subtitle), `Type`, `Position`, `Strand`, `Biotype` (muted `—`
-  when absent, common for prokaryotic data), `Description`, and `Annotations`.
-- **Annotation badges**: `functional_summary` is collapsed into compact, colour-coded
-  single-letter source badges; clicking one opens a popover listing every value, and a
-  legend decodes the letters currently on screen.
-- **Color-coded type badges**: feature types (`gene`, `mRNA`, `CDS`, …) get distinct
-  badge styles via the `FEATURE_TYPE_BADGE_CLASS` map in `config.ts`.
+1. database loading and recovery status;
+2. the built-in JBrowse linear genome view; and
+3. search controls, loaded-result facets, annotations, results, and pagination.
 
-### 2. Architecture & data flow
+The host supplies one `GenomicDataset`. `BrowserInstance` starts `useDbSearch` for
+that dataset's database URL and stores the currently selected `GenomicFeature`.
+Changing the accession or database URL changes the wrapper key, which disposes the
+old worker, results, selection, and JBrowse state before creating the next instance.
 
-The components sit at the top of a local-first pipeline:
+## Search behavior
 
-1. **The hook (`useDbSearch.ts`)** — owns the Web Worker lifecycle and exposes
-   paginated state, `search(query)`, and `loadMore()`.
-2. **The Web Worker (`db.worker.ts`)** — validates the server and normally loads SQLite
-   through an **HTTP VFS** using bounded range requests. If validation fails, the UI can
-   perform a clearly labelled complete download only after the user selects that fallback.
-   The worker measures response bytes, sanitises the query (`workers/fts.ts`), and runs
-   an `FTS5 MATCH` query against `search_fts`, joining matches to `feature_meta`.
-   Results use stable rowid ordering and keyset pagination.
-3. **The indexer (`scripts/`)** — `parser.py` parses `.gff` / `.gff.gz` files and
-   `database.py` builds the compact two-table SQLite database
-   (`{gff-name}.db.zip`) the worker queries.
+- Input is debounced by `DEBOUNCE_MS` (200 ms).
+- Queries shorter than `MIN_QUERY_LENGTH` (3 characters) clear the current results.
+- Production search covers feature IDs, names, biotypes, descriptions, and functional
+  annotations together; there is no field selector.
+- Results use deterministic rowid keyset pagination with 25 rows per page.
+- The UI reports rows loaded, elapsed query time, and whether another page is
+  available. It does not run a separate global-count query.
+- `FeatureTypeFacets` counts only the rows currently loaded and grows after
+  **Load More**.
+- Annotation values are grouped into compact source badges. Only one annotation
+  popover is open at a time.
 
-4. **Result selection** — the stable feature ID is an explicit keyboard-accessible
-   button. Selecting it sets `aria-current="location"`, calls the public callback,
-   and sends the feature's one-based GFF coordinates to the existing JBrowse view.
-   JBrowse initially shows reference and annotation tracks for a small indexed
-   region, so it can display useful features without reading the whole GFF. The
-   viewport includes the configured flank, while one translucent native JBrowse
-   highlight marks only the selected feature's exact interval. A later selection
-   reuses the same view and tracks, fetches any newly required ranges, and replaces
-   the earlier highlight. The highlight is a genomic interval band; it does not
-   programmatically select or recolor a particular GFF feature glyph.
-   A dataset change clears the selection, terminates the previous worker, and
-   recreates the accession-keyed JBrowse state.
+## Database flow
 
-### Testing multiple accessions
+1. `useDbSearch` owns the module Web Worker lifecycle and exposes initialization,
+   search, pagination, retry, and fallback state.
+2. `db.worker.ts` validates the server and database schema, opens SQLite through the
+   HTTP VFS, builds a safe FTS5 expression, and joins matches from `search_fts` to
+   display rows in `feature_meta`.
+3. Normal loading uses bounded HTTP Range requests. A complete download is available
+   only as an explicit recovery action after range initialization fails.
+4. Optional `databaseSizeBytes` and `databaseSha256` values let the worker reject a
+   truncated or changed complete-download response.
 
-The demo hides the accession selector when `DEMO_DATASETS` contains only one
-entry and displays it automatically when two or more entries are registered.
-To test switching, add a complete five-file runtime bundle under
-`sample_data/<accession>/`, then add the matching URLs and initial location to
-`src/demo/datasets.ts`. Restart the Vite server after adding filesystem assets.
-This registry and directory are local demonstration fixtures; production hosts
-should pass approved external URLs through the `GenomicDataset` prop.
+The `.db.zip` filename is an HTTP delivery convention that discourages automatic
+HTTP compression; the file contains raw SQLite bytes, not a ZIP archive.
 
-`GenomicDataset.databaseSizeBytes` and `databaseSha256` are optional integrity
-metadata controlled by the host. The component uses them when supplied but does
-not require every publication pipeline to generate them. The database schema
-version is separate: `indexer.py` writes it automatically, and the worker checks
-it before running searches so incompatible database layouts fail clearly.
+## Selection and JBrowse flow
 
-## Props
+Selecting a result:
 
-```typescript
-interface SearchBarProps {
-  results: GenomicFeature[]; // Array of matched genomic features
-  selectedFeature: GenomicFeature | null; // Current JBrowse navigation target
-  onSelectFeature: (feature: GenomicFeature) => void; // Explicit selection callback
-  loading: boolean; // True while the SQLite DB is still initializing
-  searching: boolean; // True while a search query is in-flight
-  loadingMore: boolean; // True while another page is loading
-  hasMore: boolean; // Whether another page may exist
-  elapsed: number; // Execution time of the last query in ms
-  search: (query: string) => Promise<void>; // All-fields search trigger
-  loadMore: () => Promise<number>; // Append a page; return its unique-row count
+1. stores the domain `GenomicFeature` in `GenomicFeatureBrowser`;
+2. calls the optional public `onFeatureSelect` callback;
+3. passes the feature to the private `GenomeView` boundary;
+4. navigates the existing JBrowse view to the feature plus `navigationFlankBp`;
+5. converts one-based inclusive GFF coordinates `[start, end]` into the zero-based,
+   half-open JBrowse highlight `[start - 1, end)`; and
+6. replaces the previous native JBrowse highlight with the selected interval.
+
+The highlight is an interval band. It does not programmatically select or recolor a
+specific rendered GFF feature glyph. GFF `seqid` values are passed directly to
+JBrowse as reference names, so the SQLite, FASTA, and GFF sequence names must match.
+
+## Public package boundary
+
+The package root exports one runtime value:
+
+```ts
+GenomicFeatureBrowser;
+```
+
+It also exports these TypeScript types:
+
+```ts
+GenomicDataset;
+GenomicFeature;
+GenomicFeatureBrowserProps;
+```
+
+The public import is:
+
+```tsx
+import { GenomicFeatureBrowser, type GenomicDataset } from "genomic-feature-db-component";
+import "genomic-feature-db-component/styles.css";
+```
+
+Do not expose or deep-import `SearchBar`, `useDbSearch`, `GenomeView`, worker
+modules, or JBrowse models. A future `GenomicFeatureSearch` or external-JBrowse API
+requires an additive public design and mentor/consumer approval.
+
+## Public props
+
+```ts
+interface GenomicFeatureBrowserProps {
+  dataset: GenomicDataset;
+  browserHeight?: number; // Defaults to 450
+  navigationFlankBp?: number; // Defaults to 1,000
+  className?: string;
+  onFeatureSelect?: (feature: GenomicFeature) => void;
 }
 ```
+
+`GenomicDataset` supplies the accession, raw SQLite URL, FASTA/FAI URLs, BGZF
+GFF/index URLs, and an optional initial location. The database size and SHA-256 are
+optional but recommended integrity metadata. See `src/types.ts` and the package
+README for the authoritative definitions and complete example.
+
+## Demo datasets
+
+The repository demo hides its accession selector when `DEMO_DATASETS` contains one
+entry and displays it when two or more entries are registered. To test switching,
+add a complete five-file runtime bundle under `sample_data/<accession>/` and add its
+host-resolved URLs to `src/demo/datasets.ts`.
+
+This registry and its local Range-capable data server are demo fixtures. Production
+hosts supply approved asset URLs through `GenomicDataset`.
+
+## Package-level verification
+
+The independent consumer under
+[`examples/package-consumer`](../../../examples/package-consumer/README.md) installs
+the npm tarball instead of importing repository source. Its browser journey verifies
+worker/WASM loading, CSS isolation, search, pagination, the selection callback,
+JBrowse navigation, exact highlight conversion, and highlight replacement in both
+development and production-preview modes.

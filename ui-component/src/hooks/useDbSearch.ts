@@ -199,7 +199,7 @@ export function useDbSearch(
     setError(null);
     let addedCount = 0;
     try {
-      const page = await worker.searchPage(activeSearch.query, undefined, cursor);
+      const page = await worker.searchPage(activeSearch.query, cursor);
       if (activeSearchRef.current !== activeSearch) return 0;
       const nextResults = appendUniqueFeatures(resultsRef.current, page.features);
       addedCount = nextResults.length - resultsRef.current.length;

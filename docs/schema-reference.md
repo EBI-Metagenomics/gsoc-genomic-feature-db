@@ -76,8 +76,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
     annotations,
     content='',
     tokenize='unicode61 tokenchars ''_.''',
-    detail=column,
-    columnsize=1
+    detail=none,
+    columnsize=0
 );
 ```
 
@@ -87,7 +87,7 @@ These columns are fully indexed for text search. Any word present in these field
 
 * `feature_id`: Searched when users look up specific identifiers.
 * `name`: The primary target for gene or feature name searches.
-* `biotype`: Included in the index to allow filtering by specific biological classifications.
+* `biotype`: Included in the index for all-field biological classification search.
 * `description`: Indexed to allow users to search for keywords within the product description.
 * `annotations`: Indexed so that users can search for functional terms, database cross-references, or alternative aliases. It is limited to 50 values and 2,000 characters per tag to bound pathological rows.
 
@@ -121,8 +121,8 @@ The FTS5 table is configured with specific options to minimize file size, which 
 
 * `content=''`: Makes the FTS table **contentless** — the inverted index stores only search tokens, not the original text. Display data comes from `feature_meta` via JOIN. This eliminates the `%_content` shadow table, saving ~40-50% of database size.
 * `tokenize='unicode61 tokenchars ''_.'''`: Ensures that text is tokenized correctly while ignoring case and basic punctuation. The `tokenchars` option treats underscores and periods as part of the token (not separators), so identifiers like `BU_ATCC8492` and `NC_012345.1` remain intact as single searchable tokens.
-* `detail=column`: Stores which column each token belongs to, enabling column-targeted queries (e.g., `name:BRCA1`, `biotype:protein_coding`). Phrase search is still not supported (that requires `detail=full`), but we don't need it since our search bar splits multi-word queries into individual prefix terms.
-* `columnsize=1`: Stores per-column byte lengths. The current production query does not use BM25; this setting is retained for schema compatibility until `detail=column, columnsize=0` is benchmarked independently.
+* `detail=none`: Stores only the matching rowid. The current UI uses all-field prefix search and does not expose column-targeted, phrase, or proximity queries, so column and positional match metadata are unnecessary.
+* `columnsize=0`: Omits per-column byte lengths. The production query uses stable rowid order, not BM25 ranking, so these document-size statistics are unnecessary.
 * `prefix='3 4'` (optional, enabled via `--prefix`): Pre-indexes 3 and 4-character prefixes for faster partial matching at the cost of larger file size.
 
 Production fetches one row beyond the 25-row display page. That lookahead row is
@@ -151,8 +151,7 @@ After the database is fully built and optimized, the indexer runs a verification
 | # | Check | SQL | Catches |
 |---|-------|-----|---------|
 | 1 | Row count match | `SELECT count(*) FROM feature_meta` vs indexer counter | Silent row drops during insertion |
-| 2 | Table count sync | `feature_meta` count vs `search_fts` count | Mismatched inserts between tables |
-| 3 | Rowid sync | `max(rowid)` across both tables | Rowid desync breaking JOIN queries |
+| 2-3 | FTS scan limitation | Non-MATCH scans are intentionally unsupported with `detail=none, columnsize=0` | The verifier skips count/max scans and uses the FTS5 integrity check |
 | 4 | No NULL feature IDs | `WHERE feature_id IS NULL OR feature_id = ''` | Missing identifiers |
 | 5 | Valid coordinates | `WHERE start < 1 OR end < start` | Corrupt genomic positions |
 | 6 | Valid strand | `WHERE strand NOT IN ('+', '-', '.', '?')` | Invalid strand values |
@@ -162,7 +161,7 @@ After the database is fully built and optimized, the indexer runs a verification
 If any check fails, the indexer raises a `RuntimeError` with a descriptive message. On success, it prints:
 
 ```
-[indexer] Verification passed: 8 checks OK (4,744,062 rows)
+[indexer] Verification passed: 6 checks OK; 2 FTS scan checks skipped for contentless detail=none (... rows)
 ```
 
 ## Browser compatibility and migration policy

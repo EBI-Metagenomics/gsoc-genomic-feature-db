@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { runtimeAssets } from "./dataset";
+import { databaseSizeDisplay, runtimeAssets } from "./dataset";
 
 const databasePattern = `**${runtimeAssets.database}`;
 
@@ -19,7 +19,7 @@ test("does not hide a full response behind range-loading status", async ({ page 
 
   await page.goto("/");
 
-  const alert = page.getByRole("alert");
+  const alert = page.getByRole("alert").filter({ hasText: "Database or search error:" });
   await expect(alert).toContainText("expected HTTP 206 but received 200");
   await expect(page.getByRole("button", { name: /Download complete database/ })).toBeVisible();
   await expect(page.getByRole("searchbox", { name: "Search genomic features" })).toBeDisabled();
@@ -42,7 +42,7 @@ test("uses the complete database only after explicit fallback selection", async 
   });
   await page.getByText("Database loading diagnostics").click();
   await expect(page.getByText("Complete download", { exact: true })).toBeVisible();
-  await expect(page.getByText("17.7 MiB", { exact: true })).toHaveCount(2);
+  await expect(page.getByText(databaseSizeDisplay, { exact: true })).toHaveCount(2);
 });
 
 test("recovers when the first range probe is interrupted", async ({ page }) => {

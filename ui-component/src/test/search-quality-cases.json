@@ -18,8 +18,7 @@
       "id": "feature_name",
       "category": "name",
       "query": "MGYG000490722_1.tRNA1-SerTGA",
-      "column": "name",
-      "match_expression": "name : (\"MGYG000490722_1.tRNA1\"* \"SerTGA\"*)",
+      "match_expression": "\"MGYG000490722_1.tRNA1\"* \"SerTGA\"*",
       "expected_total": 1,
       "expected_complete": true,
       "expected_rowids": [1208]
@@ -133,8 +132,8 @@
       ]
     },
     {
-      "id": "all_columns",
-      "category": "column_comparison",
+      "id": "all_field_annotation",
+      "category": "annotation",
       "query": "PF16499",
       "column": null,
       "match_expression": "\"PF16499\"*",
@@ -144,16 +143,6 @@
         1, 6, 8, 50395, 50398, 50403, 50404, 50407, 50408, 63577, 63580, 63585, 63586, 63589, 63590,
         67516, 67521, 93717, 93722
       ]
-    },
-    {
-      "id": "description_column",
-      "category": "column_comparison",
-      "query": "PF16499",
-      "column": "description",
-      "match_expression": "description : (\"PF16499\"*)",
-      "expected_total": 0,
-      "expected_complete": true,
-      "expected_rowids": []
     }
   ]
 }

@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { accession, assetRoot, rangedViewAssets, runtimeAssets } from "./dataset";
+import {
+  accession,
+  assetRoot,
+  databaseSizeBytes,
+  rangedViewAssets,
+  runtimeAssets,
+} from "./dataset";
 
 const EXTERNAL_ASSET_HOSTS = new Set([
   "assets.emblstatic.net",
@@ -48,7 +54,7 @@ test("searches the real database and navigates JBrowse with keyboard controls", 
     await page.getByTestId("database-response-bytes").getAttribute("data-bytes"),
   );
   expect(initialBytes).toBeGreaterThan(0);
-  expect(initialBytes).toBeLessThan(18_558_976);
+  expect(initialBytes).toBeLessThan(databaseSizeBytes);
   const genomeBrowser = page.locator(".cvf-jbrowse");
   await expect(genomeBrowser).toHaveAttribute("data-annotation-track-active", "true");
   await expect.poll(() => datasetRequests.has(runtimeAssets.gff)).toBe(true);

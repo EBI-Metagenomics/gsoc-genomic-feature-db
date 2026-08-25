@@ -4,16 +4,19 @@
 
 > A serverless, local-first search interface that lets bioinformaticians query millions of genomic features directly in the browser, backed by a compact SQLite FTS5 database served via HTTP Range requests.
 
----
+## GSoC 2026 Final Report
+
+For a summary of the work completed during Google Summer of Code 2026, including project outcomes, implementation details, and contributions, see the [GSoC 2026 Final Report](GSoC_report.md).
+
 
 ## What This Project Is
 
 The system has two halves:
 
-| Half                                | Language                  | Purpose                                                                                                                   |
-| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Backend indexer** (`scripts/`)    | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
-| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view                          |
+| Half                                       | Language                  | Purpose                                                                                                                                                     |
+| ------------------------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Backend indexer** (`scripts/`)           | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search                                   |
+| **Frontend and package** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view, either as the repository demo or a reusable local package |
 
 There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
 TBI/CSI assets are served as static files. SQLite querying happens client-side in
@@ -29,37 +32,49 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ## Architecture Overview
 
-```
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  BUILD TIME (offline, one-shot)                                 │
-  │                                                                 │
-  │  .gff.gz files ──▶ scripts/indexer.py ──▶ {gff-name}.db.zip        │
-  │                     │                                           │
-  │                     ├── parser.py      (GFF line parsing)       │
-  │                     ├── models.py      (GenomicFeature dataclass)│
-  │                     ├── database.py    (schema, insert, verify) │
-  │                     └── config.py      (constants & tuning)     │
-  └─────────────────────────────────────────────────────────────────┘
-                              │
-                    static file served by Vite
-                              │
-  ┌─────────────────────────────────────────────────────────────────┐
-  │  RUNTIME (browser, no server)                                   │
-  │                                                                 │
-  │  App.tsx                                                        │
-  │    ├─ useDbSearch.ts  (worker lifecycle + paginated state)      │
-  │    │    └─ db.worker.ts  (Comlink + SQLite HTTP VFS)            │
-  │    │         ├─ fts.ts  (safe FTS5 MATCH builder)               │
-  │    │         └─ HTTP Range requests ──▶ {accession}.db.zip      │
-  │    └─ SearchBar.tsx  (all-fields query + Load More)             │
-  │         ├─ SearchForm.tsx  (VF responsive search form)          │
-  │         ├─ FeatureTypeFacets.tsx  (loaded-result counts)        │
-  │         ├─ ResultsTable.tsx                                    │
-  │         └─ AnnotationBadges.tsx  (legend + detail popover)      │
-  └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph build["Build time: offline"]
+    gff[(GFF or GFF.GZ)]
+    indexer[Python indexer]
+    database[(SQLite FTS5 database)]
+
+    gff --> indexer --> database
+  end
+
+  assetHost[Static HTTPS asset host]
+  genomicFiles[(FASTA, FAI,<br/>BGZF GFF, and TBI or CSI)]
+
+  database --> assetHost
+  genomicFiles --> assetHost
+
+  subgraph runtime["Runtime: browser"]
+    user([User])
+    hostApp[Host application]
+    component[GenomicFeatureBrowser]
+    worker[Search Web Worker]
+    genomeView[Private GenomeView boundary]
+    jbrowse[Embedded JBrowse]
+
+    user --> hostApp
+    hostApp -->|GenomicDataset| component
+    component -->|search query| worker
+    worker -->|search results| component
+    component -->|selected feature| genomeView
+    genomeView --> jbrowse
+  end
+
+  worker -->|requests SQLite byte ranges| assetHost
+  jbrowse -->|requests FASTA and GFF byte ranges| assetHost
 ```
 
 ### Key Runtime Flow
+
+This is a deliberately small data-flow overview. In the current React implementation,
+`GenomicFeatureBrowser` owns the search state and selection; `App.tsx` is only the
+repository demo host. JBrowse is reached through the private `GenomeView` boundary.
+See the maintained [architecture guide](docs/architecture.md) for component, class,
+and sequence diagrams.
 
 1. The host passes one `GenomicDataset` containing exact asset URLs.
 2. `useDbSearch` boots a URL-scoped Web Worker and opens `{accession}.db.zip`
@@ -102,7 +117,7 @@ HTTP ranges, and supplies appropriate CORS headers.
 | Column               | Type       | Purpose                                                                  |
 | -------------------- | ---------- | ------------------------------------------------------------------------ |
 | `rowid`              | INTEGER PK | Shared rowid for JOIN                                                    |
-| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity        |
+| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity       |
 | `name`               | TEXT       | Gene/feature name                                                        |
 | `feature_type`       | TEXT       | Biological type (gene, mRNA, CDS, exon…)                                 |
 | `seqid`              | TEXT       | Chromosome / contig                                                      |
@@ -119,7 +134,7 @@ HTTP ranges, and supplies appropriate CORS headers.
 | ------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
 | `feature_id`  | ✅      | Identifier search                                                                                                |
 | `name`        | ✅      | Gene name search                                                                                                 |
-| `biotype`     | ✅      | Column-targeted filtering (`biotype:protein_coding`)                                                             |
+| `biotype`     | ✅      | Biological classification search                                                                                |
 | `description` | ✅      | Keyword search in descriptions                                                                                   |
 | `annotations` | ✅      | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
 
@@ -136,8 +151,8 @@ for the complete data contract and rebuild-based compatibility policy.
 | Setting      | Value                       | Why                                                                                               |
 | ------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
 | `content`    | `''` (contentless)          | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size.        |
-| `detail`     | `column`                    | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`.                 |
-| `columnsize` | `1`                         | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
+| `detail`     | `none`                      | Current UI uses all-field prefix search, so column and position metadata are unnecessary.          |
+| `columnsize` | `0`                         | BM25 document-length statistics are unused because results use deterministic rowid ordering.       |
 | `tokenize`   | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens.                          |
 
 ### Why Contentless + Two Tables?
@@ -170,6 +185,10 @@ gsoc-genomic-feature-db/
 │   │   ├── index.css                  # Global layout
 │   │   ├── cvf-genomic-search.css     # Search / badge / popover / table styles
 │   │   ├── types.ts                    # Dataset and component types
+│   │   ├── library.ts                  # Public package entry point
+│   │   │
+│   │   ├── genome-view/
+│   │   │   └── GenomeView.tsx         # Private boundary around JBrowse
 │   │   │
 │   │   ├── hooks/
 │   │   │   └── useDbSearch.ts         # Worker lifecycle + search state
@@ -194,11 +213,19 @@ gsoc-genomic-feature-db/
 │   │       └── annotations/
 │   │           ├── sources.ts         # Annotation source catalogue (data)
 │   │           └── parse.ts           # functional_summary parser
+│   ├── scripts/                         # Package build, inspection, and test orchestration
 │   ├── index.html                      # React shell + VF/EBI CDN assets
 │   ├── package.json
 │   ├── vite.config.ts
+│   ├── vite.lib.config.ts              # Reusable library build configuration
 │   ├── tsconfig.json
 │   └── tsconfig.app.json
+│
+├── examples/
+│   └── package-consumer/               # Independent Vite/React tarball consumer
+│       ├── e2e/                        # Packed-package browser test
+│       ├── package.json
+│       └── README.md                   # Purpose and manual test instructions
 │
 ├── sample_data/                       # Local demo/test fixture; not production data
 │   └── MGYG000490722/
@@ -216,9 +243,10 @@ gsoc-genomic-feature-db/
 │   └── test_search_quality.py         # Fixed demo-database search matrix
 │
 ├── docs/                              # Design documentation
+│   ├── README.md                       # Documentation index
 │   ├── schema-reference.md            # Full schema + FTS5 config docs
 │   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
-│   ├── advanced_column_search.md      # detail=column rationale
+│   ├── advanced_column_search.md      # FTS configuration history
 │   ├── search-quality.md              # Search semantics, quality, and targets
 │   └── plan.md                        # GSoC timeline + WBS
 │
@@ -243,8 +271,9 @@ python scripts/indexer.py \
   sample_data/MGYG000490722/MGYG000490722.gff.gz
 ```
 
-This creates `sample_data/MGYG000490722/MGYG000490722.db.zip`. The suffix is an
-HTTP delivery name; the file contains raw SQLite bytes.
+This creates `sample_data/MGYG000490722/MGYG000490722.db.zip`. The filename is an
+HTTP delivery convention that discourages automatic HTTP compression; the file
+contains raw SQLite bytes and is not a ZIP archive.
 
 **CLI options:** `--prefix` (pre-index 3/4-char prefixes), `--no-vacuum`, `--limit N`.
 
@@ -274,6 +303,16 @@ npx playwright install chromium firefox
 The production data boundary, recommended EBI publication flow, range/CORS
 contract, and remaining EBI endpoint decisions are documented in
 [Production data integration](docs/production-data-integration.md).
+
+The bundled demo and its browser-testing workflow are described in
+[the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
+dependencies match the committed lockfile, then install the Playwright browsers
+before running E2E tests:
+
+```powershell
+cd ui-component
+npx playwright install chromium firefox
+```
 
 The bundled demo and its browser-testing workflow are described in
 [the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
@@ -367,7 +406,7 @@ query and does not represent totals across every database match.
 | #   | Decision                                        | Alternatives Considered          | Rationale                                                                                                                                |
 | --- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **Contentless FTS5**                            | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size.                                                                         |
-| 2   | **`detail=column` retained in the current DB**  | `detail=none`, `detail=full`     | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
+| 2   | **`detail=none`, `columnsize=0` in the current DB** | `detail=column`, `detail=full`; `columnsize=1` | Current UI uses all-field prefix search and stable rowid paging, so FTS column detail and BM25 size metadata are unnecessary. |
 | 3   | **Two-table design**                            | Single FTS5 table                | Separate display (native types, `functional_summary`) from search (FTS only).                                                            |
 | 4   | **HTTP VFS (Range requests)**                   | Download entire DB upfront       | On-demand page fetching — only query-touched pages are fetched.                                                                          |
 | 5   | **Web Worker + Comlink**                        | Main-thread SQLite               | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI.                                                              |
@@ -455,9 +494,10 @@ npm run build     # tsc -b && vite build
 - Load Visual Framework globally in the host; do not restyle JBrowse or Material
   UI internals from component CSS.
 
-The normal `npm run build` excludes `sample_data/`. Use `npm run build:demo`
-only for a self-contained demonstration; production should supply approved EBI
-HTTPS asset URLs through `GenomicDataset`.
+The default `npm run build` is the reusable package build and excludes
+`sample_data/`. Use `npm run build:demo` only for a self-contained
+demonstration; production should supply approved EBI HTTPS asset URLs through
+`GenomicDataset`.
 
 ---
 

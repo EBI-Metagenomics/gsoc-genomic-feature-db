@@ -9,12 +9,11 @@ def verify_database(db_path: str) -> None:
     c = sqlite3.connect(db_path)
 
     meta_count = c.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
-    fts_count = c.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
     schema_version, generator_version = c.execute(
         "SELECT schema_version, generator_version FROM database_metadata"
     ).fetchone()
     print(f"feature_meta count: {meta_count:,}")
-    print(f"search_fts max rowid: {fts_count:,}")
+    print("search_fts: contentless detail=none index (non-MATCH scans disabled)")
     print(f"schema version: {schema_version}")
     print(f"generator version: {generator_version}")
 
@@ -24,14 +23,14 @@ def verify_database(db_path: str) -> None:
         """
         SELECT m.name, m.feature_type, m.biotype, m.functional_summary
         FROM (
-            SELECT rowid, rank
+            SELECT rowid
             FROM search_fts
             WHERE search_fts MATCH ?
-            ORDER BY rank
+            ORDER BY rowid
             LIMIT 5
         ) f
         JOIN feature_meta m ON m.rowid = f.rowid
-        ORDER BY f.rank
+        ORDER BY f.rowid
         """,
         (query,),
     ).fetchall()
@@ -48,14 +47,14 @@ def verify_database(db_path: str) -> None:
         """
         SELECT m.name, m.feature_type, m.functional_summary
         FROM (
-            SELECT rowid, rank
+            SELECT rowid
             FROM search_fts
             WHERE search_fts MATCH ?
-            ORDER BY rank
+            ORDER BY rowid
             LIMIT 5
         ) f
         JOIN feature_meta m ON m.rowid = f.rowid
-        ORDER BY f.rank
+        ORDER BY f.rowid
         """,
         (query2,),
     ).fetchall()
@@ -65,7 +64,8 @@ def verify_database(db_path: str) -> None:
 
     print("\n--- Contentless behavior check ---")
     contentless_row = c.execute(
-        "SELECT name, annotations FROM search_fts LIMIT 1"
+        "SELECT name, annotations FROM search_fts WHERE search_fts MATCH ? LIMIT 1",
+        (query,),
     ).fetchone()
     print(f"Direct SELECT from search_fts: {contentless_row}")
 
