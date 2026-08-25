@@ -12,16 +12,22 @@ Previously, the `search_fts` virtual table was configured with `detail='none'`.
 By updating the FTS5 schema to `detail='column'`, the index starts remembering *which column* each word belongs to.
 
 ### Capabilities Unlocked
-- **Laser Precision:** Users can explicitly search a specific column, e.g., `name:BRCA1`. This strictly finds genes named BRCA1 and ignores mentions in descriptions.
-- **Biotype Filtering:** Users can search `biotype:gene` to only return genes.
-- **Combined Queries:** Power users can combine filters, e.g., `name:dnaA biotype:mRNA`.
-- **Space Efficiency:** Unlike `detail='full'` (which stores exact word positions and massively bloats the `.db` file size), `detail='column'` only stores the column index. This provides advanced search capabilities with almost **zero increase in database size**.
+- **Internal precision:** The query builder and quality tests can restrict a MATCH expression to one allow-listed column, e.g., `name : ("BRCA1"*)`.
+- **Schema flexibility:** A future UI could add field filtering without rebuilding a `detail=column` database.
+- **Space Efficiency:** Unlike `detail='full'`, `detail='column'` stores column
+  identity without exact token positions. It is materially smaller than full
+  positional detail; any further reduction to `detail='none'` should be measured
+  independently before rebuilding databases.
+
+Production currently searches every indexed field together and does not expose a
+field dropdown or accept FTS column syntax from users. Column scoping is an
+internal, allow-listed capability rather than a documented user query language.
 
 ## Clarification: `annotations` vs. `functional_summary`
 The `feature_meta` table contains a `functional_summary` column, while the `search_fts` table contains an `annotations` column. Both derive from the exact same underlying source (`FUNCTIONAL_TAGS` in the GFF file, such as GO terms, EC numbers, and cross-references).
 
 Why don't we add `functional_summary` to the FTS table?
-1. **`functional_summary` is built for UI Display.** It strictly limits data to a maximum of 3 items per tag and truncates the string to 300 characters to ensure it looks clean on the screen.
-2. **`annotations` is built for Search Engines.** It holds up to 6 items per tag, avoids aggressive truncation, and systematically strips out duplicate words that already exist in the `name` or `description` to prevent index bloat.
+1. **`functional_summary` is built for UI display.** It preserves the configured functional tags and their source grouping so the UI can render one compact badge per source and show that source's values in a popover. It keeps up to 50 values and 2,000 characters per tag, with no global cap across tags.
+2. **`annotations` is built for search.** It uses the same per-tag limits, but removes values already present in `feature_id`, `name`, `biotype`, or `description` to avoid duplicate index terms. It is inserted into contentless FTS5, so its original text is not retrievable for display.
 
-**Conclusion:** The `annotations` column is significantly better suited for searching. If users want to find specific functional annotations (like a specific GO term or EC number), they should simply use the `annotations:` filter. Adding `functional_summary` to the FTS table would be redundant and less effective.
+**Conclusion:** The fields have complementary jobs. `annotations` supplies the full search index; `functional_summary` supplies the grouped annotation values needed for the UI badges and popovers. Functional identifiers such as GO or EC values are found by the production all-field search; adding `functional_summary` to the FTS table would be redundant.

@@ -1,14 +1,23 @@
 import gzip
+import hashlib
 import sqlite3
 import subprocess
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
+import indexer
 from conftest import SAMPLE_GFF
+from config import GENERATOR_VERSION, SCHEMA_VERSION
 from indexer import build_database, default_output_path
 
 SCRIPT_DIR = Path(__file__).parent.parent / "scripts"
+
+
+def write_gff(path: Path, *records: str) -> Path:
+    path.write_text("##gff-version 3\n" + "\n".join(records) + "\n", encoding="utf-8")
+    return path
 
 
 class TestFTS:
@@ -74,6 +83,162 @@ class TestEdgeCases:
         db = tmp_path / "no.db"
         with pytest.raises(FileNotFoundError):
             build_database("nonexistent_file_xyz.gff3", str(db))
+        assert not db.exists()
+
+    def test_all_inputs_are_validated_before_existing_output_is_touched(self, tmp_path):
+        gff = write_gff(
+            tmp_path / "valid.gff3",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=stable",
+        )
+        db = tmp_path / "stable.db"
+        build_database(str(gff), str(db), vacuum=False)
+        original_database = db.read_bytes()
+
+        with pytest.raises(FileNotFoundError):
+            build_database([str(gff), str(tmp_path / "missing.gff3")], str(db))
+
+        assert db.read_bytes() == original_database
+        assert list(tmp_path.glob(f".{db.name}.*.tmp")) == []
+
+    def test_duplicate_feature_ids_are_retained_as_independent_rows(self, tmp_path):
+        gff = write_gff(
+            tmp_path / "duplicates.gff3",
+            "contig_1\tsource\tgene\t1\t5\t.\t+\t.\tID=shared;Name=first",
+            "contig_1\tsource\tgene\t8\t12\t.\t-\t.\tID=shared;Name=second",
+        )
+        db = tmp_path / "duplicates.db"
+
+        build_database(str(gff), str(db), vacuum=False)
+
+        with closing(sqlite3.connect(db)) as connection:
+            rows = connection.execute(
+                "SELECT rowid, feature_id, name, start, end "
+                "FROM feature_meta ORDER BY rowid"
+            ).fetchall()
+            matching_rowids = connection.execute(
+                "SELECT m.rowid FROM search_fts f "
+                "JOIN feature_meta m ON m.rowid = f.rowid "
+                "WHERE search_fts MATCH 'shared' ORDER BY m.rowid"
+            ).fetchall()
+
+        assert rows == [
+            (1, "shared", "first", 1, 5),
+            (2, "shared", "second", 8, 12),
+        ]
+        assert matching_rowids == [(1,), (2,)]
+
+    def test_parent_attribute_stays_outside_search_database_relationships(
+        self, tmp_path
+    ):
+        gff = write_gff(
+            tmp_path / "relationships.gff3",
+            "contig_1\tsource\tgene\t1\t20\t.\t+\t.\tID=parent1;Name=parent",
+            "contig_1\tsource\tmRNA\t3\t18\t.\t+\t.\t"
+            "ID=child1;Name=child;Parent=parent1",
+        )
+        db = tmp_path / "relationships.db"
+
+        build_database(str(gff), str(db), vacuum=False)
+
+        with closing(sqlite3.connect(db)) as connection:
+            rows = connection.execute(
+                "SELECT feature_id, name FROM feature_meta ORDER BY rowid"
+            ).fetchall()
+            columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(feature_meta)")
+            }
+            child_matches = connection.execute(
+                "SELECT count(*) FROM search_fts WHERE search_fts MATCH 'child1'"
+            ).fetchone()[0]
+
+        assert rows == [("parent1", "parent"), ("child1", "child")]
+        assert "parent" not in columns
+        assert child_matches == 1
+
+    def test_valid_coordinate_boundaries_are_stored_unchanged(self, tmp_path):
+        gff = write_gff(
+            tmp_path / "valid-coordinates.gff3",
+            "seq-A\tsource\tgene\t1\t5\t.\t+\t.\tID=starts-at-one",
+            "seq-A\tsource\tgene\t7\t7\t.\t+\t.\tID=single-base",
+            "seq-A\tsource\tgene\t2147483647\t2147483647\t.\t+\t.\tID=large",
+        )
+        db = tmp_path / "valid-coordinates.db"
+
+        build_database(str(gff), str(db), vacuum=False)
+
+        with closing(sqlite3.connect(db)) as connection:
+            coordinates = connection.execute(
+                "SELECT feature_id, seqid, start, end "
+                "FROM feature_meta ORDER BY rowid"
+            ).fetchall()
+
+        assert coordinates == [
+            ("starts-at-one", "seq-A", 1, 5),
+            ("single-base", "seq-A", 7, 7),
+            ("large", "seq-A", 2147483647, 2147483647),
+        ]
+
+    @pytest.mark.parametrize(
+        ("start", "end"),
+        [("0", "1"), ("-1", "1"), ("3", "2")],
+    )
+    def test_invalid_coordinate_boundaries_fail_verification(
+        self, tmp_path, start, end
+    ):
+        gff = write_gff(
+            tmp_path / f"invalid-{start}-{end}.gff3",
+            f"seq-A\tsource\tgene\t{start}\t{end}\t.\t+\t.\tID=invalid",
+        )
+        db = tmp_path / "invalid-coordinates.db"
+
+        with pytest.raises(RuntimeError, match="invalid coordinates"):
+            build_database(str(gff), str(db), vacuum=False)
+
+        assert not db.exists()
+
+    def test_fasta_section_terminates_indexing(self, tmp_path):
+        gff = tmp_path / "with-fasta.gff3"
+        gff.write_text(
+            "##gff-version 3\n"
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=before-fasta\n"
+            "##FASTA\n"
+            ">seq-A\n"
+            "ACGT\n"
+            "seq-A\tsource\tgene\t8\t9\t.\t+\t.\tID=after-fasta\n",
+            encoding="utf-8",
+        )
+        db = tmp_path / "with-fasta.db"
+
+        build_database(str(gff), str(db), vacuum=False)
+
+        with closing(sqlite3.connect(db)) as connection:
+            ids = connection.execute(
+                "SELECT feature_id FROM feature_meta ORDER BY rowid"
+            ).fetchall()
+        assert ids == [("before-fasta",)]
+
+    @pytest.mark.parametrize("exception_type", [RuntimeError, KeyboardInterrupt])
+    def test_failed_build_preserves_destination_and_removes_temporary_file(
+        self, tmp_path, monkeypatch, exception_type
+    ):
+        gff = write_gff(
+            tmp_path / "valid.gff3",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=stable",
+        )
+        db = tmp_path / "stable.db"
+        build_database(str(gff), str(db), vacuum=False)
+        original_database = db.read_bytes()
+
+        def fail_verification(self, expected_rows):
+            raise exception_type("injected verification failure")
+
+        monkeypatch.setattr(indexer.DatabaseVerifier, "verify", fail_verification)
+
+        with pytest.raises(exception_type, match="injected verification failure"):
+            build_database(str(gff), str(db), vacuum=False)
+
+        assert db.read_bytes() == original_database
+        assert list(tmp_path.glob(f".{db.name}.*.tmp")) == []
 
     def test_output_db_is_valid_sqlite(self, db_path):
         conn = sqlite3.connect(str(db_path))
@@ -100,6 +265,50 @@ class TestCLI:
         assert result.returncode == 0
         assert db.exists()
         assert db.stat().st_size > 0
+        with closing(sqlite3.connect(db)) as conn:
+            metadata = conn.execute(
+                "SELECT schema_version, generator_version FROM database_metadata"
+            ).fetchone()
+        assert metadata == (SCHEMA_VERSION, GENERATOR_VERSION)
+
+    def test_cli_reports_reproducible_audit_summary(self, tmp_path):
+        gff = write_gff(
+            tmp_path / "summary.gff3",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\tID=kept-gene",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.",
+            "seq-A\tsource\tgene\tnot-an-int\t4\t.\t+\t.\tID=bad-coordinate",
+            "seq-A\tsource\texon\t1\t4\t.\t+\t.\tID=quiet-exon",
+            "seq-A\tsource\tgene\t1\t4\t.\t+\t.\t.",
+            "seq-B\tsource\tCDS\t8\t12\t.\t-\t.\tID=kept-cds",
+        )
+        db = tmp_path / "summary.db"
+
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_DIR / "indexer.py"), str(gff), "-o", str(db)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0
+        output = result.stdout + result.stderr
+        assert "Feature rows examined: 6" in output
+        assert "Indexed searchable rows: 2" in output
+        assert "Skipped rows: 4" in output
+        assert "malformed columns=1" in output
+        assert "non-integer coordinates=1" in output
+        assert "low-value unannotated features=1" in output
+        assert "features without identity or annotation=1" in output
+        assert "Distinct sequences: 2" in output
+        assert "Indexed feature types: CDS=1, gene=1" in output
+        assert (
+            f"Input SHA-256 ({gff}): {hashlib.sha256(gff.read_bytes()).hexdigest()}"
+            in output
+        )
+        assert f"DB size: {db.stat().st_size:,} bytes" in output
+        assert (
+            f"Output SHA-256: {hashlib.sha256(db.read_bytes()).hexdigest()}" in output
+        )
 
     @pytest.mark.parametrize(
         ("filename", "expected"),

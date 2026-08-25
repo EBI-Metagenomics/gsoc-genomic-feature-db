@@ -43,7 +43,7 @@ describe("JBrowse configuration", () => {
     expect(track.adapter.index.indexType).toBe("CSI");
   });
 
-  it("opens both tracks at the configured initial location", () => {
+  it("opens reference and annotation tracks at the configured initial location", () => {
     const session = buildInitialSession(dataset);
     expect(session.view.init).toMatchObject({
       assembly: dataset.accession,

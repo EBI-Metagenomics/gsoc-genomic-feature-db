@@ -9,8 +9,8 @@ This document explains the design decisions behind our FTS5 configuration. We us
 | Setting | Pure FTS5 (default) | Our choice | Why |
 |---------|---------------------|------------|-----|
 | `content` | Stores full text | `content=''` (contentless) | We have `feature_meta` for display data — no need to store it twice |
-| `detail` | `full` (stores token positions) | `column` (stores rowid + column number) | We need column-targeted search (`name:BRCA1`) but not phrase search |
-| `columnsize` | `1` (stores column lengths) | `1` (we keep this) | Helps BM25 rank shorter, more relevant results higher |
+| `detail` | `full` (stores token positions) | `column` (stores rowid + column number) | Retains internal column-scoped capability without phrase-position data |
+| `columnsize` | `1` (stores column lengths) | `1` (retained) | Schema compatibility; production no longer orders by BM25 |
 
 ---
 
@@ -115,7 +115,7 @@ To know if "protein" and "kinase" appear **next to each other**, FTS5 needs thei
 
 We previously used `detail=none`, which was the absolute smallest index. However, it came with a significant usability limitation: there was no way to search a specific column. If a user searched for `"muscle"`, it would match any row where that word appeared in *any* column — even a 500-word background description. This caused false positives for users strictly looking for a gene *named* "muscle".
 
-`detail=column` solves this by recording which column each token belongs to, unlocking targeted queries:
+`detail=column` solves this by recording which column each token belongs to, unlocking internal targeted queries:
 
 ```
 "dnaA"                 → single term, works fine                     ✅
@@ -130,7 +130,7 @@ Our search bar already splits multi-word queries into individual terms with `*` 
 
 ### Why not `detail=none`?
 
-`detail=none` would be ~10–20% smaller, but it makes column-targeted search impossible. Since our UI provides an "Advanced Column Search" dropdown (e.g., search only in `name`, `biotype`, or `annotations`), we need `detail=column` for this feature to work.
+`detail=none` would be ~10–20% smaller, but it makes column-targeted search impossible. The current UI searches all fields and has no field dropdown; `detail=column` is retained for internal verification and possible future filtering. Any switch to `detail=none` requires a controlled database-size benchmark and a deliberate decision to remove that capability.
 
 ### Size impact
 
@@ -148,7 +148,9 @@ For a 100K-feature database:
 
 ## What is `columnsize=1`?
 
-This stores the byte-length of each column for every row. FTS5 uses this for **BM25 ranking** — deciding which results are most relevant.
+This stores the byte-length of each column for every row. FTS5 can use it for
+BM25 ranking, but the current production query deliberately orders by stable
+rowid and does not consume these length statistics.
 
 ### Simple example
 
@@ -164,22 +166,26 @@ Both rows contain "kinase", but Row A is **more about kinase** (1 out of 3 words
 - **With `columnsize=1`**: BM25 knows Row A is short → boosts it → **Row A ranks first** ✅
 - **With `columnsize=0`**: BM25 assumes both rows are average length → might rank them equally or wrong
 
-### Why we keep it
+### Why we keep it for now
 
-The size cost is small (~0.3–0.5 MB for our database), and the ranking improvement is meaningful when users search general terms like "kinase", "transporter", or "replication" that match many rows.
+It remains part of existing generated databases and preserves compatibility with
+historical ranking experiments. Its current production benefit has not been
+demonstrated. A future optimization should compare `detail=column,
+columnsize=1` with `detail=column, columnsize=0` so the columnsize effect is not
+confounded with a simultaneous `detail` change.
 
 ---
 
 ## What We Gain and What We Lose
 
-### What `detail=column` gives us
+### What `detail=column` keeps available internally
 
 | Capability | Example |
 |------------|----------|
-| **Column-targeted search** | `name:BRCA1` — only matches rows where "BRCA1" appears in the `name` column |
-| **Biotype filtering** | `biotype:protein_coding` — narrows results to a specific biotype |
-| **Combined column queries** | `name:dnaA biotype:mRNA` — AND across columns |
-| **Prefix + column** | `name:dnA*` — prefix search within a single column |
+| **Implemented column scope** | `buildMatchExpression("BRCA1", "name")` — the internal query builder restricts every term to one allow-listed column |
+| **Implemented biotype scope** | `buildMatchExpression("protein_coding", "biotype")` — useful for tests or a future controlled UI |
+| **Schema-level combined queries** | FTS5 can represent AND expressions across columns, although the current query builder does not expose them |
+| **Prefix + column** | The internal builder emits a prefix expression within its selected column |
 
 ### What we still lose (and why it's okay)
 
@@ -215,7 +221,7 @@ functional_summary      ✅ "pfam: PF00308 | ..."   ❌ not searchable
 annotations             ❌ not stored              ✅ tokens: [pfam, pf00308, go, 0003677, ...]
 ```
 
-Notice `annotations` — the longest field with all the Pfam, GO, KEGG, InterPro terms — is **searchable but never stored as text**. Only the shorter `functional_summary` is stored for display. This is the biggest space saving.
+Notice `annotations` — the search-oriented field with Pfam, GO, KEGG, InterPro, and related terms — is **searchable but never stored as text**. `functional_summary` is stored separately for display so the UI can group values into source badges and popovers. Both are bounded to 50 values and 2,000 characters per tag; the search field additionally omits values duplicated in identity/display fields. Avoiding storage of the FTS content is the space saving.
 
 ---
 
@@ -237,7 +243,7 @@ We chose `content=''` + `detail=column` + `columnsize=1` because:
 
 1. **Our database is downloaded by browsers** — every MB matters
 2. **We have `feature_meta` for display** — no need to store text twice in FTS
-3. **We need column-targeted search** — users can filter by `name:`, `biotype:`, `annotations:` etc.
+3. **We retain column-targeted capability internally** — production currently searches all fields
 4. **We don't use phrase search** — our search bar uses individual terms with prefix matching, so `detail=full` is unnecessary
-5. **We do want good ranking** — `columnsize=1` costs little but improves result ordering
+5. **Production uses deterministic rowid ordering** — `columnsize=1` is retained pending an isolated follow-up benchmark
 6. **Our pipeline is write-once** — we rebuild from GFF files, so DELETE/UPDATE are irrelevant

@@ -87,6 +87,7 @@ function GenomicLinearViewInstance({
       data-accession={dataset.accession}
       data-visible-location={visibleLocation}
       data-highlighted-feature={highlightedFeature}
+      data-annotation-track-active="true"
     >
       {navigationError && navigationError.featureId === selectedFeature?.id && (
         <div className="cvf-jbrowse__error" role="alert">

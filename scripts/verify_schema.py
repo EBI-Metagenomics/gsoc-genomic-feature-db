@@ -10,8 +10,13 @@ def verify_database(db_path: str) -> None:
 
     meta_count = c.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
     fts_count = c.execute("SELECT max(rowid) FROM search_fts").fetchone()[0]
+    schema_version, generator_version = c.execute(
+        "SELECT schema_version, generator_version FROM database_metadata"
+    ).fetchone()
     print(f"feature_meta count: {meta_count:,}")
     print(f"search_fts max rowid: {fts_count:,}")
+    print(f"schema version: {schema_version}")
+    print(f"generator version: {generator_version}")
 
     query = "nfrA2*"
     print(f"\n--- Searching for {query} ---")

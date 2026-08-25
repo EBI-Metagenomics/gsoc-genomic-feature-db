@@ -4,9 +4,13 @@
   "version": "0.1.0",
   "description": "Browser-based genomic feature search with an embedded JBrowse linear view",
   "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:demo": "tsc -b && vite build --mode demo",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -15,7 +19,7 @@
     "test:e2e": "playwright test",
     "preview": "vite preview",
     "index": "python ../scripts/indexer.py ../sample_data/MGYG000490722/MGYG000490722.gff.gz",
-    "predeploy": "npm run build",
+    "predeploy": "npm run build:demo",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
@@ -25,7 +29,7 @@
     "mobx": "6.15.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sqlite-wasm-http": "^1.2.0"
+    "sqlite-wasm-http": "1.2.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

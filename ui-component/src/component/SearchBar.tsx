@@ -99,7 +99,7 @@ export default function SearchBar({
         if (loadMoreRequestRef.current !== requestId) return;
         if (addedCount > 0) {
           setPaginationAnnouncement(
-            `${addedCount} more result${addedCount === 1 ? "" : "s"} loaded. ${startIndex + addedCount} results total.`,
+            `${addedCount} more result${addedCount === 1 ? "" : "s"} loaded. ${startIndex + addedCount} results loaded.`,
           );
         } else {
           setFocusResultIndex(null);
@@ -127,7 +127,7 @@ export default function SearchBar({
     };
   }, []);
 
-  const resultMeta = `${results.length} result${results.length !== 1 ? "s" : ""} loaded in ${elapsed.toFixed(1)} ms`;
+  const resultMeta = `${results.length} result${results.length !== 1 ? "s" : ""} loaded in ${elapsed.toFixed(1)} ms. ${hasMore ? "More results are available." : "All matching results are loaded."}`;
 
   return (
     <div className="vf-stack vf-stack--400">

@@ -26,8 +26,9 @@ pieces it composes.
   `config.ts` and are shared with `useDbSearch` and `db.worker` so the thresholds never drift.
 - **All-fields search**: production searches feature IDs, names, biotypes,
   descriptions, and functional annotations together; there is no field dropdown.
-- **Dynamic feedback**: loading spinner, query execution time (ms), result counts, and
-  error banners.
+- **Dynamic feedback**: loading spinner, query execution time (ms), rows loaded,
+  whether more results are available, and error banners. No global match total is
+  requested over HTTP VFS.
 - **Result visualization**: a table of `Feature ID` (the stable `feature_id`, with the
   gene symbol as a muted subtitle), `Type`, `Position`, `Strand`, `Biotype` (muted `—`
   when absent, common for prokaryotic data), `Description`, and `Annotations`.
@@ -43,8 +44,10 @@ The components sit at the top of a local-first pipeline:
 
 1. **The hook (`useDbSearch.ts`)** — owns the Web Worker lifecycle and exposes
    paginated state, `search(query)`, and `loadMore()`.
-2. **The Web Worker (`db.worker.ts`)** — loads the SQLite database via **HTTP VFS**
-   (Range requests, no full download), sanitises the query (`workers/fts.ts`), and runs
+2. **The Web Worker (`db.worker.ts`)** — validates the server and normally loads SQLite
+   through an **HTTP VFS** using bounded range requests. If validation fails, the UI can
+   perform a clearly labelled complete download only after the user selects that fallback.
+   The worker measures response bytes, sanitises the query (`workers/fts.ts`), and runs
    an `FTS5 MATCH` query against `search_fts`, joining matches to `feature_meta`.
    Results use stable rowid ordering and keyset pagination.
 3. **The indexer (`scripts/`)** — `parser.py` parses `.gff` / `.gff.gz` files and
@@ -54,10 +57,13 @@ The components sit at the top of a local-first pipeline:
 4. **Result selection** — the stable feature ID is an explicit keyboard-accessible
    button. Selecting it sets `aria-current="location"`, calls the public callback,
    and sends the feature's one-based GFF coordinates to the existing JBrowse view.
-   The viewport includes the configured flank, while one translucent native JBrowse
+   JBrowse initially shows reference and annotation tracks for a small indexed
+   region, so it can display useful features without reading the whole GFF. The
+   viewport includes the configured flank, while one translucent native JBrowse
    highlight marks only the selected feature's exact interval. A later selection
-   replaces the earlier highlight. The highlight is a genomic interval band; it does
-   not programmatically select or recolor a particular GFF feature glyph.
+   reuses the same view and tracks, fetches any newly required ranges, and replaces
+   the earlier highlight. The highlight is a genomic interval band; it does not
+   programmatically select or recolor a particular GFF feature glyph.
    A dataset change clears the selection, terminates the previous worker, and
    recreates the accession-keyed JBrowse state.
 
@@ -68,6 +74,14 @@ entry and displays it automatically when two or more entries are registered.
 To test switching, add a complete five-file runtime bundle under
 `sample_data/<accession>/`, then add the matching URLs and initial location to
 `src/demo/datasets.ts`. Restart the Vite server after adding filesystem assets.
+This registry and directory are local demonstration fixtures; production hosts
+should pass approved external URLs through the `GenomicDataset` prop.
+
+`GenomicDataset.databaseSizeBytes` and `databaseSha256` are optional integrity
+metadata controlled by the host. The component uses them when supplied but does
+not require every publication pipeline to generate them. The database schema
+version is separate: `indexer.py` writes it automatically, and the worker checks
+it before running searches so incompatible database layouts fail clearly.
 
 ## Props
 

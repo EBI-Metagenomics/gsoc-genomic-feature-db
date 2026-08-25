@@ -10,10 +10,10 @@
 
 The system has two halves:
 
-| Half | Language | Purpose |
-|------|----------|---------|
-| **Backend indexer** (`scripts/`) | Python 3 (stdlib only) | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
-| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view |
+| Half                                | Language                  | Purpose                                                                                                                   |
+| ----------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Backend indexer** (`scripts/`)    | Python 3 (stdlib only)    | Parse `.gff` / `.gff.gz` genomic annotation files → build a compact, optimised SQLite database with FTS5 full-text search |
+| **Frontend demo** (`ui-component/`) | TypeScript / React / Vite | Search an accession-specific SQLite database and navigate an embedded JBrowse linear genome view                          |
 
 There is **no application server at runtime**. SQLite, FASTA, FAI, BGZF GFF, and
 TBI/CSI assets are served as static files. SQLite querying happens client-side in
@@ -64,13 +64,15 @@ HTTP ranges, and supplies appropriate CORS headers.
 1. The host passes one `GenomicDataset` containing exact asset URLs.
 2. `useDbSearch` boots a URL-scoped Web Worker and opens `{accession}.db.zip`
    through SQLite HTTP VFS.
-3. The embedded view configures `IndexedFastaAdapter` and `Gff3TabixAdapter`
-   against the same accession.
+3. The embedded view opens immediately at the dataset's small initial region
+   with reference and annotation tracks active. The indexed adapters request
+   only the FASTA/GFF ranges needed for that region.
 4. User input of at least three characters executes an FTS5 prefix search and
    returns keyset-paginated results.
-5. Selecting a feature converts its one-based GFF coordinates into a flanked
-   JBrowse location, replaces the native JBrowse highlight with the feature's
-   exact interval, and navigates the existing view state.
+5. A feature selection navigates the existing view state to the feature's
+   flanked location and requests any additional indexed data ranges needed
+   there. Every selection replaces the native JBrowse highlight with the
+   feature's exact interval while reusing the same tracks and view state.
 6. Changing accession disposes the old worker, results, selection, and JBrowse
    view before activating the next dataset.
 
@@ -93,47 +95,55 @@ HTTP ranges, and supplies appropriate CORS headers.
 
 ---
 
-## Database Design (Two-Table Architecture)
+## Database Design (Versioned Two-Table Search Architecture)
 
 ### `feature_meta` — regular SQLite table (display data)
 
-| Column | Type | Purpose |
-|--------|------|---------|
-| `rowid` | INTEGER PK | Shared rowid for JOIN |
-| `feature_id` | TEXT | Unique feature identifier |
-| `name` | TEXT | Gene/feature name |
-| `feature_type` | TEXT | Biological type (gene, mRNA, CDS, exon…) |
-| `seqid` | TEXT | Chromosome / contig |
-| `start` | INTEGER | 1-based start coordinate |
-| `end` | INTEGER | 1-based end coordinate |
-| `strand` | TEXT | `+`, `-`, or `.` |
-| `biotype` | TEXT | Classification (protein_coding, lncRNA…) |
-| `description` | TEXT | Product / description text |
-| `functional_summary` | TEXT | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
+| Column               | Type       | Purpose                                                                  |
+| -------------------- | ---------- | ------------------------------------------------------------------------ |
+| `rowid`              | INTEGER PK | Shared rowid for JOIN                                                    |
+| `feature_id`         | TEXT       | Source feature identifier; SQLite `rowid` is the internal identity        |
+| `name`               | TEXT       | Gene/feature name                                                        |
+| `feature_type`       | TEXT       | Biological type (gene, mRNA, CDS, exon…)                                 |
+| `seqid`              | TEXT       | Chromosome / contig                                                      |
+| `start`              | INTEGER    | 1-based start coordinate                                                 |
+| `end`                | INTEGER    | 1-based end coordinate                                                   |
+| `strand`             | TEXT       | `+`, `-`, `.`, or `?`                                                    |
+| `biotype`            | TEXT       | Classification (protein_coding, lncRNA…)                                 |
+| `description`        | TEXT       | Product / description text                                               |
+| `functional_summary` | TEXT       | Per-tag annotation values for UI display (≤ 50 values/tag, ≤ 2000 chars) |
 
 ### `search_fts` — contentless FTS5 virtual table (search index)
 
-| Column | Indexed | Purpose |
-|--------|---------|---------|
-| `feature_id` | ✅ | Identifier search |
-| `name` | ✅ | Gene name search |
-| `biotype` | ✅ | Column-targeted filtering (`biotype:protein_coding`) |
-| `description` | ✅ | Keyword search in descriptions |
-| `annotations` | ✅ | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
+| Column        | Indexed | Purpose                                                                                                          |
+| ------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
+| `feature_id`  | ✅      | Identifier search                                                                                                |
+| `name`        | ✅      | Gene name search                                                                                                 |
+| `biotype`     | ✅      | Column-targeted filtering (`biotype:protein_coding`)                                                             |
+| `description` | ✅      | Keyword search in descriptions                                                                                   |
+| `annotations` | ✅      | Full functional annotations (GO, Pfam, KEGG…), ≤ 50 values/tag — **searchable but never stored as display text** |
+
+### `database_metadata` — schema compatibility
+
+Every generated database contains exactly one `database_metadata` row with a
+numeric schema version and an indexer generator version. The browser validates
+this row before querying feature data and rejects incompatible artifacts with a
+clear initialization error. See [the schema reference](docs/schema-reference.md)
+for the complete data contract and rebuild-based compatibility policy.
 
 ### FTS5 Configuration Rationale
 
-| Setting | Value | Why |
-|---------|-------|-----|
-| `content` | `''` (contentless) | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size. |
-| `detail` | `column` | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`. |
-| `columnsize` | `1` | Enables BM25 length-aware ranking. Small cost, meaningful relevance improvement. |
-| `tokenize` | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens. |
+| Setting      | Value                       | Why                                                                                               |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
+| `content`    | `''` (contentless)          | Display data lives in `feature_meta` — no need to store text twice. Saves ~40-50% DB size.        |
+| `detail`     | `column`                    | Enables column-targeted search (`name:BRCA1`) without the bloat of `detail=full`.                 |
+| `columnsize` | `1`                         | Retained for schema compatibility; production uses deterministic rowid ordering rather than BM25. |
+| `tokenize`   | `unicode61 tokenchars '_.'` | Keeps identifiers like `BU_ATCC8492` and `NC_012345.1` as single tokens.                          |
 
 ### Why Contentless + Two Tables?
 
 - **5–6× smaller** than pure FTS5 with zero loss in search accuracy.
-- `annotations` (the longest field) is indexed for search but never stored — only the shorter `functional_summary` is stored for UI display.
+- `annotations` is indexed for search but never stored as FTS text. `functional_summary` is stored separately for UI badges and popovers; both retain up to 50 values and 2,000 characters per configured tag, while the search field omits values duplicated in identity/display fields.
 - The pipeline is **write-once** (rebuild from GFF files), so DELETE/UPDATE limitations of contentless FTS are irrelevant.
 
 ---
@@ -190,7 +200,7 @@ gsoc-genomic-feature-db/
 │   ├── tsconfig.json
 │   └── tsconfig.app.json
 │
-├── sample_data/                       # Local genomic runtime bundles
+├── sample_data/                       # Local demo/test fixture; not production data
 │   └── MGYG000490722/
 │       ├── MGYG000490722.db.zip
 │       ├── MGYG000490722.fna
@@ -202,12 +212,14 @@ gsoc-genomic-feature-db/
 │   ├── conftest.py                    # Fixtures (builds test DB from sample GFF)
 │   ├── test_database.py               # Database builder + verifier tests
 │   ├── test_indexer.py                # End-to-end indexer tests
-│   └── test_parser.py                 # GFF parser tests
+│   ├── test_parser.py                 # GFF parser tests
+│   └── test_search_quality.py         # Fixed demo-database search matrix
 │
 ├── docs/                              # Design documentation
 │   ├── schema-reference.md            # Full schema + FTS5 config docs
 │   ├── reason_not_using_pure_fts.md   # Why contentless FTS5
 │   ├── advanced_column_search.md      # detail=column rationale
+│   ├── search-quality.md              # Search semantics, quality, and targets
 │   └── plan.md                        # GSoC timeline + WBS
 │
 ├── .github/workflows/ci.yml           # GitHub Actions CI
@@ -222,7 +234,7 @@ gsoc-genomic-feature-db/
 ### Prerequisites
 
 - Python 3.10+ (no external packages needed for the indexer)
-- Node.js 20+ / npm
+- Node.js 22.x / npm
 
 ### 1. Generate the Database
 
@@ -240,13 +252,28 @@ HTTP delivery name; the file contains raw SQLite bytes.
 
 ```bash
 cd ui-component
-npm install
+npm ci
 npm run dev
 # Open http://localhost:5173/
 ```
 
 The demo registry initially contains only `MGYG000490722`. Every registry entry
-must provide its own complete five-file runtime bundle.
+must provide its own complete five-file runtime bundle. `sample_data/` is a
+local fixture and is excluded from normal production builds.
+
+The bundled demo and its browser-testing workflow are described in
+[the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
+dependencies match the committed lockfile, then install the Playwright browsers
+before running E2E tests:
+
+```powershell
+cd ui-component
+npx playwright install chromium firefox
+```
+
+The production data boundary, recommended EBI publication flow, range/CORS
+contract, and remaining EBI endpoint decisions are documented in
+[Production data integration](docs/production-data-integration.md).
 
 ### 3. Run Python Tests
 
@@ -264,8 +291,17 @@ npm run lint
 npm run format:check
 npm test
 npm run build
+npm run test:e2e -- --project=chromium
+npm run test:e2e -- --project=firefox
 npm run test:e2e
 ```
+
+Chromium-based browsers and Firefox are the supported/tested browsers. CI runs
+the Chromium critical workflow; run Firefox locally before a release or after
+browser-sensitive UI changes. WebKit and the optional performance checks are
+local validation rather than merge gates. See [the User Guide](docs/USAGE.md)
+for the complete test scope, including the intentionally ignored external-CDN
+console errors in the E2E test.
 
 ---
 
@@ -293,7 +329,12 @@ App.tsx
 2. **Sanitise:** preserve usable letters, numbers, `_`, `.`, and identifier separators, then safely quote FTS terms.
 3. **Prefix match:** ordinary tokens become quoted prefix terms joined as implicit AND: `"dnaA"* "protein"*`. Namespaced IDs such as `GeneID:54998` and `HGNC:HGNC:1729` keep their namespace structure while prefix matching the final value.
 4. **All fields:** production searches the complete FTS index; there is no field dropdown.
-5. **Pagination:** results use stable `rowid` ordering and 25-row keyset pages; **Load More** continues after the previous cursor instead of using SQL offsets.
+5. **Pagination:** results use stable `rowid` ordering and 25-row keyset pages; a one-row lookahead determines whether **Load More** is shown.
+6. **Counts:** the UI reports rows loaded and whether more are available; it does not run a global FTS count over HTTP VFS.
+
+See [Search Semantics, Quality, and Performance](docs/search-quality.md) for the
+fixed MGYG quality matrix, ranking decision, performance target, and known
+limitations.
 
 ### Feature-Type Facet
 
@@ -313,17 +354,18 @@ query and does not represent totals across every database match.
 
 ## Key Design Decisions
 
-| # | Decision | Alternatives Considered | Rationale |
-|---|----------|------------------------|-----------|
-| 1 | **Contentless FTS5** | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size. |
-| 2 | **`detail=column` retained in the current DB** | `detail=none`, `detail=full` | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
-| 3 | **Two-table design** | Single FTS5 table | Separate display (native types, `functional_summary`) from search (FTS only). |
-| 4 | **HTTP VFS (Range requests)** | Download entire DB upfront | On-demand page fetching — only query-touched pages are fetched. |
-| 5 | **Web Worker + Comlink** | Main-thread SQLite | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI. |
-| 6 | **Python stdlib only** | pandas, BioPython | Zero external dependencies = easier onboarding, reproducibility, CI. |
-| 7 | **`annotations` vs `functional_summary` split** | Single field for both | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars). |
-| 8 | **Prefix matching** over phrase search | FTS5 phrase queries | Multi-word queries split into individual prefix terms — more forgiving for genomic search. |
-| 9 | **Loaded-result feature-type facet** | A second aggregate DB query | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far. |
+| #   | Decision                                        | Alternatives Considered          | Rationale                                                                                                                                |
+| --- | ----------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Contentless FTS5**                            | Content FTS5 (stores text twice) | Browser downloads the DB — every MB matters. Saves ~40-50% size.                                                                         |
+| 2   | **`detail=column` retained in the current DB**  | `detail=none`, `detail=full`     | Keeps internal/benchmark scoped-query compatibility. Production now searches all fields; a future DB rebuild may evaluate `detail=none`. |
+| 3   | **Two-table design**                            | Single FTS5 table                | Separate display (native types, `functional_summary`) from search (FTS only).                                                            |
+| 4   | **HTTP VFS (Range requests)**                   | Download entire DB upfront       | On-demand page fetching — only query-touched pages are fetched.                                                                          |
+| 5   | **Web Worker + Comlink**                        | Main-thread SQLite               | SQLite ops are synchronous; Comlink provides typed RPC without blocking UI.                                                              |
+| 6   | **Python stdlib only**                          | pandas, BioPython                | Zero external dependencies = easier onboarding, reproducibility, CI.                                                                     |
+| 7   | **`annotations` vs `functional_summary` split** | Single field for both            | `annotations` for search (full, deduplicated); `functional_summary` for display (compact). Both cap at ≤ 50 values/tag (≤ 2000 chars).   |
+| 8   | **Prefix matching** over phrase search          | FTS5 phrase queries              | Multi-word queries split into individual prefix terms — more forgiving for genomic search.                                               |
+| 9   | **Loaded-result feature-type facet**            | A second aggregate DB query      | Gives immediate context without additional HTTP-VFS work. Its scope is deliberately labelled as the rows loaded so far.                  |
+| 10  | **Stable rowid ordering**                       | BM25 relevance sorting           | Avoids scoring and sorting every broad match over HTTP VFS; fixed tests verify deterministic pages.                                      |
 
 ---
 
@@ -331,15 +373,15 @@ query and does not represent totals across every database match.
 
 ### Modules
 
-| File | Role |
-|------|------|
-| [`indexer.py`](scripts/indexer.py) | CLI entry point. Coordinates parsing → insertion → verification → optimisation. |
-| [`parser.py`](scripts/parser.py) | `GFFParser` class. Reads `.gff`/`.gff.gz`, parses attributes, builds annotations, filters low-value features. |
-| [`database.py`](scripts/database.py) | `DatabaseBuilder` (schema + PRAGMAs), `FeatureRepository` (batch insert + optimise), `DatabaseVerifier` (7-check integrity suite). |
-| [`models.py`](scripts/models.py) | `GenomicFeature` dataclass with typed fields and tuple conversion. |
-| [`config.py`](scripts/config.py) | All constants: `BATCH_SIZE`, `LOW_VALUE_TYPES`, `FUNCTIONAL_TAGS`, `DESCRIPTION_KEYS`, `NAME_KEYS`, `ID_KEYS`, `BIOTYPE_KEYS`, SQLite PRAGMAs. |
-| [`utils.py`](scripts/utils.py) | Logger factory, DB size helper. |
-| [`verify_schema.py`](scripts/verify_schema.py) | Standalone verification script for manual DB inspection. |
+| File                                           | Role                                                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`indexer.py`](scripts/indexer.py)             | CLI entry point. Coordinates parsing → insertion → verification → optimisation.                                                                |
+| [`parser.py`](scripts/parser.py)               | `GFFParser` class. Reads `.gff`/`.gff.gz`, parses attributes, builds annotations, filters low-value features.                                  |
+| [`database.py`](scripts/database.py)           | `DatabaseBuilder` (schema + PRAGMAs), `FeatureRepository` (batch insert + optimise), `DatabaseVerifier` (7-check integrity suite).             |
+| [`models.py`](scripts/models.py)               | `GenomicFeature` dataclass with typed fields and tuple conversion.                                                                             |
+| [`config.py`](scripts/config.py)               | All constants: `BATCH_SIZE`, `LOW_VALUE_TYPES`, `FUNCTIONAL_TAGS`, `DESCRIPTION_KEYS`, `NAME_KEYS`, `ID_KEYS`, `BIOTYPE_KEYS`, SQLite PRAGMAs. |
+| [`utils.py`](scripts/utils.py)                 | Logger factory, DB size helper.                                                                                                                |
+| [`verify_schema.py`](scripts/verify_schema.py) | Standalone verification script for manual DB inspection.                                                                                       |
 
 ### Key Behaviours
 
@@ -353,17 +395,17 @@ query and does not represent totals across every database match.
 
 ## Tech Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| React | 18.3 | UI framework |
-| Vite | 5.4 | Dev server + bundler |
-| TypeScript | 5.5 | Type safety |
-| EMBL VF CDN | 2.5.28 | Global layout, form, button, table, badge, and error styling |
-| Custom CSS | - | Component-specific styling (`cvf-*`) |
-| `@sqlite.org/sqlite-wasm` | 3.51 | SQLite compiled to WASM |
-| `sqlite-wasm-http` | 1.2 | HTTP VFS — fetch DB pages via Range requests |
-| Comlink | 4.4 | Typed RPC between main thread and Web Worker |
-| Python (stdlib) | 3.10+ | Backend indexer (sqlite3, gzip, argparse, dataclasses) |
+| Technology                | Version | Purpose                                                      |
+| ------------------------- | ------- | ------------------------------------------------------------ |
+| React                     | 18.3    | UI framework                                                 |
+| Vite                      | 5.4     | Dev server + bundler                                         |
+| TypeScript                | 5.5     | Type safety                                                  |
+| EMBL VF CDN               | 2.5.28  | Global layout, form, button, table, badge, and error styling |
+| Custom CSS                | -       | Component-specific styling (`cvf-*`)                         |
+| `@sqlite.org/sqlite-wasm` | 3.51    | SQLite compiled to WASM                                      |
+| `sqlite-wasm-http`        | 1.2     | HTTP VFS — fetch DB pages via Range requests                 |
+| Comlink                   | 4.4     | Typed RPC between main thread and Web Worker                 |
+| Python (stdlib)           | 3.10+   | Backend indexer (sqlite3, gzip, argparse, dataclasses)       |
 
 ---
 
@@ -395,33 +437,36 @@ npm run build     # tsc -b && vite build
 
 ### Static hosting requirements
 
-- Serve `.db.zip`, `.fna`, and `.gff.gz` with byte-range support.
+- Serve `.db.zip`, `.fna`, `.fna.fai`, `.gff.gz`, and `.gff.gz.tbi`/`.csi`
+  with byte-range support. Large database, FASTA, and BGZF GFF files are read
+  on demand; their small indexes may be fetched in full by the client.
 - Serve `.gff.gz` as raw BGZF bytes without HTTP gzip transformation.
 - Configure CORS when assets and the application use different origins.
 - Load Visual Framework globally in the host; do not restyle JBrowse or Material
   UI internals from component CSS.
 
+The normal `npm run build` excludes `sample_data/`. Use `npm run build:demo`
+only for a self-contained demonstration; production should supply approved EBI
+HTTPS asset URLs through `GenomicDataset`.
+
 ---
 
 ## Contributing
 
-1. Install pre-commit hooks: `pre-commit install`
-2. Create a feature branch
-3. Make your changes (Black + Ruff for Python, strict TypeScript for frontend)
-4. Run tests: `pytest tests/ -v`
-5. Submit a pull request
+See the [Quick Start / Contributor Guide](<docs/QuickStartGuide/Contributor Guide.md>)
+for the setup, validation matrix, demo-data boundary, and pull-request workflow.
 
 ---
 
 ## GSoC Timeline
 
-| Date | Milestone |
-|------|-----------|
-| May 25, 2026 | Project Work Period Start |
-| Jul 6–10, 2026 | Midterm Evaluation |
-| Aug 17–24, 2026 | Final Submission |
-| Aug 24–31, 2026 | Final Evaluation |
-| Nov 9, 2026 | Project Completion Date |
+| Date            | Milestone                 |
+| --------------- | ------------------------- |
+| May 25, 2026    | Project Work Period Start |
+| Jul 6–10, 2026  | Midterm Evaluation        |
+| Aug 17–24, 2026 | Final Submission          |
+| Aug 24–31, 2026 | Final Evaluation          |
+| Nov 9, 2026     | Project Completion Date   |
 
 ---
 

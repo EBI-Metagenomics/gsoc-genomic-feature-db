@@ -4,6 +4,10 @@ export interface GenomicDataset {
   accession: string;
   /** URL of the raw SQLite database carrying a `.db.zip` delivery suffix. */
   databaseUrl: string;
+  /** Optional expected byte length used to reject incomplete or changed database content. */
+  databaseSizeBytes?: number;
+  /** Optional SHA-256 digest used to verify the explicit full-download fallback. */
+  databaseSha256?: string;
   /** URL of the uncompressed reference FASTA. */
   fastaUrl: string;
   /** URL of the FASTA `.fai` index. */

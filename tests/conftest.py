@@ -32,10 +32,3 @@ def empty_gff(tmp_path):
     p = tmp_path / "empty.gff3"
     p.write_text("##gff-version 3\n")
     return p
-
-
-@pytest.fixture
-def malformed_gff(tmp_path):
-    p = tmp_path / "bad.gff3"
-    p.write_text("this is not a valid gff3 file\n\t\t\n")
-    return p

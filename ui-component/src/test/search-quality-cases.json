@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "dataset": "MGYG000490722",
+  "database": "sample_data/MGYG000490722/MGYG000490722.db.zip",
+  "page_size": 25,
+  "cases": [
+    {
+      "id": "complete_identifier",
+      "category": "identifier",
+      "query": "MGYG000490722_00001",
+      "column": null,
+      "match_expression": "\"MGYG000490722_00001\"*",
+      "expected_total": 9,
+      "expected_complete": true,
+      "expected_rowids": [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    },
+    {
+      "id": "feature_name",
+      "category": "name",
+      "query": "MGYG000490722_1.tRNA1-SerTGA",
+      "column": "name",
+      "match_expression": "name : (\"MGYG000490722_1.tRNA1\"* \"SerTGA\"*)",
+      "expected_total": 1,
+      "expected_complete": true,
+      "expected_rowids": [1208]
+    },
+    {
+      "id": "description_keyword",
+      "category": "description",
+      "query": "DapA-like",
+      "column": null,
+      "match_expression": "\"DapA\"* \"like\"*",
+      "expected_total": 9,
+      "expected_complete": true,
+      "expected_rowids": [15, 52827, 106585, 106590, 126551, 127024, 127029, 134324, 134329]
+    },
+    {
+      "id": "pfam_annotation",
+      "category": "annotation",
+      "query": "pfam:PF16499",
+      "column": null,
+      "match_expression": "\"pfam\" \"PF16499\"*",
+      "expected_total": 19,
+      "expected_complete": true,
+      "expected_rowids": [
+        1, 6, 8, 50395, 50398, 50403, 50404, 50407, 50408, 63577, 63580, 63585, 63586, 63589, 63590,
+        67516, 67521, 93717, 93722
+      ]
+    },
+    {
+      "id": "interpro_annotation",
+      "category": "annotation",
+      "query": "interpro:IPR002241",
+      "column": null,
+      "match_expression": "\"interpro\" \"IPR002241\"*",
+      "expected_total": 20,
+      "expected_complete": true,
+      "expected_rowids": [
+        1, 6, 8, 50395, 50398, 50403, 50404, 50407, 50408, 63577, 63580, 63585, 63586, 63589, 63590,
+        67516, 67521, 67527, 93717, 93722
+      ]
+    },
+    {
+      "id": "identifier_prefix",
+      "category": "prefix",
+      "query": "MGYG000490722_000",
+      "column": null,
+      "match_expression": "\"MGYG000490722_000\"*",
+      "expected_total": 1157,
+      "expected_complete": false,
+      "expected_rowids": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+        26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+        49, 50
+      ]
+    },
+    {
+      "id": "multiple_terms",
+      "category": "multiple_terms",
+      "query": "Ski3 TTC37",
+      "column": null,
+      "match_expression": "\"Ski3\"* \"TTC37\"*",
+      "expected_total": 4,
+      "expected_complete": true,
+      "expected_rowids": [41, 46, 48, 53]
+    },
+    {
+      "id": "punctuation",
+      "category": "punctuation",
+      "query": "Ski3/TTC37",
+      "column": null,
+      "match_expression": "\"Ski3\"* \"TTC37\"*",
+      "expected_total": 4,
+      "expected_complete": true,
+      "expected_rowids": [41, 46, 48, 53]
+    },
+    {
+      "id": "period_identifier",
+      "category": "period",
+      "query": "ec_number:3.2.1.22",
+      "column": null,
+      "match_expression": "\"ec_number\" \"3.2.1.22\"*",
+      "expected_total": 37,
+      "expected_complete": true,
+      "expected_rowids": [
+        1, 6, 8, 50395, 50398, 50403, 50404, 50407, 50408, 63577, 63580, 63585, 63586, 63589, 63590,
+        64553, 64558, 64560, 64563, 64566, 64567, 64570, 64571, 67516, 67521, 67523, 67527, 67535,
+        67538, 67542, 67546, 67550, 67554, 67558, 67562, 93717, 93722
+      ]
+    },
+    {
+      "id": "no_result",
+      "category": "no_result",
+      "query": "zzzx_no_such_feature_987",
+      "column": null,
+      "match_expression": "\"zzzx_no_such_feature_987\"*",
+      "expected_total": 0,
+      "expected_complete": true,
+      "expected_rowids": []
+    },
+    {
+      "id": "high_frequency",
+      "category": "high_frequency",
+      "query": "protein",
+      "column": null,
+      "match_expression": "\"protein\"*",
+      "expected_total": 22579,
+      "expected_complete": false,
+      "expected_rowids": [
+        10, 20, 25, 27, 29, 34, 39, 55, 60, 92, 97, 99, 104, 106, 108, 110, 115, 117, 119, 140, 145,
+        147, 169, 174, 176, 181, 183, 188, 190, 195, 223, 242, 247, 295, 300, 304, 309, 310, 313,
+        315, 332, 337, 398, 403, 405, 407, 470, 475, 478, 481
+      ]
+    },
+    {
+      "id": "all_columns",
+      "category": "column_comparison",
+      "query": "PF16499",
+      "column": null,
+      "match_expression": "\"PF16499\"*",
+      "expected_total": 19,
+      "expected_complete": true,
+      "expected_rowids": [
+        1, 6, 8, 50395, 50398, 50403, 50404, 50407, 50408, 63577, 63580, 63585, 63586, 63589, 63590,
+        67516, 67521, 93717, 93722
+      ]
+    },
+    {
+      "id": "description_column",
+      "category": "column_comparison",
+      "query": "PF16499",
+      "column": "description",
+      "match_expression": "description : (\"PF16499\"*)",
+      "expected_total": 0,
+      "expected_complete": true,
+      "expected_rowids": []
+    }
+  ]
+}

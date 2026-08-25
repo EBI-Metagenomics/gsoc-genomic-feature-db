@@ -1,3 +1,9 @@
+import pytest
+
+from config import GENERATOR_VERSION, SCHEMA_VERSION
+from database import DatabaseVerifier, make_schema
+
+
 class TestSchema:
     def test_feature_meta_table_exists(self, conn):
         tables = {
@@ -16,6 +22,15 @@ class TestSchema:
             ).fetchall()
         }
         assert "search_fts" in tables
+
+    def test_database_metadata_table_exists(self, conn):
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        assert "database_metadata" in tables
 
     def test_feature_meta_columns(self, conn):
         cols = {
@@ -36,6 +51,31 @@ class TestSchema:
         }
         assert expected == cols
 
+    def test_database_metadata_columns(self, conn):
+        cols = [
+            r[1]
+            for r in conn.execute("PRAGMA table_info(database_metadata)").fetchall()
+        ]
+        assert cols == ["schema_version", "generator_version"]
+
+    def test_fts_contract(self, conn):
+        sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE name = 'search_fts'"
+        ).fetchone()[0]
+        assert "content=''" in sql
+        assert "unicode61 tokenchars ''_.''" in sql
+        assert "detail=column" in sql
+        assert "columnsize=1" in sql
+        assert "prefix=" not in sql
+
+    def test_no_secondary_indexes(self, conn):
+        assert conn.execute("PRAGMA index_list(feature_meta)").fetchall() == []
+        assert conn.execute("PRAGMA index_list(database_metadata)").fetchall() == []
+
+    def test_prefix_indexing_is_opt_in(self):
+        assert "prefix='3 4'" not in make_schema()
+        assert "prefix='3 4'" in make_schema(use_prefix=True)
+
     def test_no_triggers(self, conn):
         triggers = {
             r[0]
@@ -47,6 +87,39 @@ class TestSchema:
 
 
 class TestDataIntegrity:
+    def test_database_metadata_matches_indexer(self, conn):
+        rows = conn.execute(
+            "SELECT schema_version, generator_version FROM database_metadata"
+        ).fetchall()
+        assert rows == [(SCHEMA_VERSION, GENERATOR_VERSION)]
+
+    @pytest.mark.parametrize(
+        ("update_sql", "expected_message"),
+        [
+            (
+                "UPDATE database_metadata SET schema_version = 999",
+                "Database metadata mismatch",
+            ),
+            (
+                "UPDATE database_metadata SET generator_version = ''",
+                "Database metadata mismatch",
+            ),
+        ],
+    )
+    def test_verifier_rejects_invalid_metadata(
+        self, conn, update_sql, expected_message
+    ):
+        expected_rows = conn.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
+        conn.execute(update_sql)
+        with pytest.raises(RuntimeError, match=expected_message):
+            DatabaseVerifier(conn).verify(expected_rows)
+
+    def test_verifier_rejects_missing_metadata_table(self, conn):
+        expected_rows = conn.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
+        conn.execute("DROP TABLE database_metadata")
+        with pytest.raises(RuntimeError, match="Database metadata check failed"):
+            DatabaseVerifier(conn).verify(expected_rows)
+
     def test_feature_count_positive(self, conn):
         count = conn.execute("SELECT count(*) FROM feature_meta").fetchone()[0]
         assert count > 0

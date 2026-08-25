@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import SearchBar from "./SearchBar";
+import DatabaseStatus from "./DatabaseStatus";
 import { useDbSearch } from "../hooks/useDbSearch";
 import GenomicLinearView from "../jbrowse/GenomicLinearView";
 import type { GenomicFeature, GenomicFeatureBrowserProps } from "../types";
@@ -12,7 +13,10 @@ function BrowserInstance({
   className,
   onFeatureSelect,
 }: GenomicFeatureBrowserProps) {
-  const searchState = useDbSearch(dataset.databaseUrl);
+  const searchState = useDbSearch(dataset.databaseUrl, {
+    expectedSizeBytes: dataset.databaseSizeBytes,
+    sha256: dataset.databaseSha256,
+  });
   const [selectedFeature, setSelectedFeature] = useState<GenomicFeature | null>(null);
   const selectFeature = useCallback(
     (feature: GenomicFeature) => {
@@ -26,18 +30,10 @@ function BrowserInstance({
 
   return (
     <section className={classes.join(" ")}>
-      {searchState.loading && <p role="status">{searchState.status}</p>}
-      {searchState.error && (
-        <div role="alert" className="vf-banner vf-banner--alert vf-banner--danger">
-          <div className="vf-banner__content">
-            <p className="vf-banner__text">
-              <strong>Search error:</strong> {searchState.error}
-            </p>
-          </div>
-        </div>
-      )}
+      <DatabaseStatus {...searchState} expectedSizeBytes={dataset.databaseSizeBytes} />
       <SearchBar
         {...searchState}
+        loading={!searchState.ready}
         selectedFeature={selectedFeature}
         onSelectFeature={selectFeature}
       />

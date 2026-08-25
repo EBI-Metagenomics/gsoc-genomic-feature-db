@@ -226,6 +226,10 @@ ui-component/playwright-report/
 ui-component/test-results/
 sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz
 sample_data/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
+
+# Legacy/deferred database artifacts are not part of the maintained project data.
+/database/
+
 context.md
 .commandcode          
 .codebase-memory
