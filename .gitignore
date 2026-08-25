@@ -227,6 +227,21 @@ ui-component/test-results/
 sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz
 sample_data/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
 
+# Reproducible benchmark inputs and generated working artifacts.
+benchmark-data/
+benchmark-work/
+benchmark/output/
+benchmark/results/tmp/
+benchmark/results/*smoke*.json
+
+# Local issue/PR screenshots used during development discussions.
+# Keep intentional documentation images trackable by avoiding a global *.png rule.
+/issue *.png
+/new_pr.png
+/preview_error.png
+/too much data.png
+/benchmark/Benchmark Mode.png
+
 # Legacy/deferred database artifacts are not part of the maintained project data.
 /database/
 

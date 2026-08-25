@@ -46,6 +46,7 @@ export interface DatabaseInitOptions extends DatabaseIntegrity {
 export interface DatabaseInitResult {
   message: string;
   diagnostics: TransferDiagnostics;
+  elapsed_ms: number;
 }
 
 let database: DatabaseHandle | null = null;
@@ -134,6 +135,7 @@ function readyResult(
   return {
     message: `${description} – schema v${validated.schemaVersion}, generator v${validated.generatorVersion}, ~${validated.rowCount} features indexed.`,
     diagnostics: currentDiagnostics(before),
+    elapsed_ms: 0,
   };
 }
 
@@ -206,6 +208,7 @@ const workerApi = {
     options: DatabaseInitOptions = {},
     report?: (progress: LoadingProgress) => void,
   ): Promise<DatabaseInitResult> {
+    const startedAt = performance.now();
     disposeDatabase();
     counters = createTransferCounters();
     loadMode = options.mode ?? "range";
@@ -213,9 +216,11 @@ const workerApi = {
     pageSizeBytes = null;
     const integrity = { expectedSizeBytes: options.expectedSizeBytes, sha256: options.sha256 };
     try {
-      return loadMode === "range"
-        ? await initialiseRangeDatabase(url, integrity, report)
-        : await initialiseDownloadedDatabase(url, integrity, report);
+      const result =
+        loadMode === "range"
+          ? await initialiseRangeDatabase(url, integrity, report)
+          : await initialiseDownloadedDatabase(url, integrity, report);
+      return { ...result, elapsed_ms: performance.now() - startedAt };
     } catch (error: unknown) {
       database?.close();
       database = null;

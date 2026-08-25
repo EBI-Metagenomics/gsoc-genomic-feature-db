@@ -55,6 +55,7 @@ export function useDbSearch(
   const [status, setStatus] = useState("Initialising…");
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [initializationElapsed, setInitializationElapsed] = useState<number | null>(null);
   const [progress, setProgress] = useState<LoadingProgress | null>(null);
   const [diagnostics, setDiagnostics] = useState<TransferDiagnostics | null>(null);
   const [initialisationFailed, setInitialisationFailed] = useState(false);
@@ -83,6 +84,7 @@ export function useDbSearch(
       setHasMore(false);
       setError(null);
       setElapsed(0);
+      setInitializationElapsed(null);
       setProgress(null);
       setDiagnostics(null);
       setInitialisationFailed(false);
@@ -105,6 +107,7 @@ export function useDbSearch(
         if (!cancelled) {
           setStatus(result.message);
           setDiagnostics(result.diagnostics);
+          setInitializationElapsed(result.elapsed_ms);
           setProgress(null);
           setLoading(false);
           setReady(true);
@@ -244,6 +247,7 @@ export function useDbSearch(
     status,
     error,
     elapsed,
+    initializationElapsed,
     mode,
     progress,
     diagnostics,

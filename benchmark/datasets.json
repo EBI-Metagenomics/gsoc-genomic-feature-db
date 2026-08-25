@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "datasets": [
+    {
+      "id": "MGYG000490722",
+      "role": "small",
+      "description": "Bundled MGnify metagenome used by the interactive demonstration.",
+      "source_url": "https://raw.githubusercontent.com/EBI-Metagenomics/gsoc-genomic-feature-db/7ac4e389f2e2a9543fcc87e69e7c3ce298e35dab/sample_data/MGYG000490722.gff.gz",
+      "local_path": "benchmark-data/MGYG000490722.gff.gz",
+      "repository_fixture": "sample_data/MGYG000490722.gff.gz",
+      "sha256": "c9b09f69299808a44aa0f68587b879c055181ffbf44f37a67a9be3d36ecf47f7",
+      "compressed_bytes": 2647569,
+      "uncompressed_bytes": 25425052
+    },
+    {
+      "id": "GCF_000001215.4",
+      "role": "medium",
+      "description": "NCBI RefSeq Drosophila melanogaster Release 6 plus ISO1 MT annotation.",
+      "source_url": "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/215/GCF_000001215.4_Release_6_plus_ISO1_MT/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+      "local_path": "benchmark-data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+      "repository_fixture": "sample_data/GCF_000001215.4_Release_6_plus_ISO1_MT_genomic.gff.gz",
+      "sha256": "9a372f10f86f4fe4222d070a101716b7565affdd6cb96efae249e8afa3b2c726",
+      "compressed_bytes": 8688226,
+      "uncompressed_bytes": 164988613
+    },
+    {
+      "id": "GENCODE-v49-GRCh38",
+      "role": "large",
+      "description": "GENCODE v49 comprehensive human GRCh38 annotation including patches, haplotypes and scaffolds.",
+      "source_url": "https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+      "local_path": "benchmark-data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+      "repository_fixture": "sample_data/gencode.v49.chr_patch_hapl_scaff.annotation.gff3.gz",
+      "sha256": "d4765904062c657b8cc654547cb4a27a586452b669f2fb174e35ea52191e983f",
+      "compressed_bytes": 123771820,
+      "uncompressed_bytes": 3477564032
+    }
+  ]
+}

@@ -143,4 +143,20 @@ describe("GenomicFeatureBrowser", () => {
       "1 result loaded in 1.0 ms. All matching results are loaded.",
     );
   });
+
+  it("labels result counts as loaded and reports whether another page exists", () => {
+    searchHook.mockReturnValue(searchState({ hasMore: true }));
+    const { rerender } = render(<GenomicFeatureBrowser dataset={dataset} />);
+
+    expect(document.querySelector(".cvf-search-meta > span[aria-hidden='true']")?.textContent).toBe(
+      "1 result loaded in 1.0 ms. More results are available.",
+    );
+
+    searchHook.mockReturnValue(searchState({ hasMore: false }));
+    rerender(<GenomicFeatureBrowser dataset={dataset} />);
+
+    expect(document.querySelector(".cvf-search-meta > span[aria-hidden='true']")?.textContent).toBe(
+      "1 result loaded in 1.0 ms. All matching results are loaded.",
+    );
+  });
 });

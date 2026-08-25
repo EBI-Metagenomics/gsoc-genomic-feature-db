@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "datasets": {
+    "small": [
+      { "category": "exact_identifier", "query": "MGYG000490722_00001" },
+      { "category": "namespace_identifier", "query": "pfam:PF16499" },
+      { "category": "broad_keyword", "query": "protein" },
+      { "category": "identifier_prefix", "query": "MGYG000490722_000" },
+      { "category": "few_results", "query": "Ski3/TTC37" }
+    ],
+    "medium": [
+      { "category": "exact_identifier", "query": "FBgn0023169" },
+      { "category": "namespace_identifier", "query": "GeneID:43904" },
+      { "category": "broad_keyword", "query": "kinase" },
+      { "category": "identifier_prefix", "query": "FBgn" },
+      { "category": "few_results", "query": "NP_72673" }
+    ],
+    "large": [
+      { "category": "exact_identifier", "query": "ENSG00000290825.2" },
+      {
+        "category": "namespace_identifier",
+        "query": "transcript_id:ENST00000832824.1"
+      },
+      { "category": "broad_keyword", "query": "ENSG" },
+      { "category": "identifier_prefix", "query": "ENST000008" },
+      { "category": "few_results", "query": "ENST00000832824.1" }
+    ]
+  }
+}

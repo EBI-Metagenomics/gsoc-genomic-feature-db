@@ -31,17 +31,17 @@ function BrowserInstance({
   return (
     <section className={classes.join(" ")}>
       <DatabaseStatus {...searchState} expectedSizeBytes={dataset.databaseSizeBytes} />
-      <SearchBar
-        {...searchState}
-        loading={!searchState.ready}
-        selectedFeature={selectedFeature}
-        onSelectFeature={selectFeature}
-      />
       <GenomicLinearView
         dataset={dataset}
         maxHeight={browserHeight}
         selectedFeature={selectedFeature}
         navigationFlankBp={navigationFlankBp}
+      />
+      <SearchBar
+        {...searchState}
+        loading={!searchState.ready}
+        selectedFeature={selectedFeature}
+        onSelectFeature={selectFeature}
       />
     </section>
   );

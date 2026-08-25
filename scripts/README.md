@@ -42,6 +42,9 @@ querying feature data.
 - `--prefix`: Enables prefix searching in FTS5 (increases database size).
 - `--no-vacuum`: Skips the final SQLite VACUUM optimization (faster generation, but larger file size).
 - `--limit`: Only parse N rows (useful for quick testing).
+- `--stats-json`: Write a stable JSON audit containing row counts, skipped
+  reasons, complete build duration, configuration, environment versions, input
+  hashes, and output size/hash. Normal CLI behaviour is unchanged when omitted.
 
 Verify a generated database by passing its path explicitly:
 

@@ -11,6 +11,7 @@ type DatabaseStatusProps = Pick<
   | "canFallback"
   | "retry"
   | "downloadFullDatabase"
+  | "initializationElapsed"
 > & { expectedSizeBytes?: number };
 
 export function formatBytes(bytes: number): string {
@@ -80,6 +81,15 @@ export default function DatabaseStatus(props: DatabaseStatusProps) {
                 ? formatBytes(diagnostics.databaseSizeBytes)
                 : "Unknown"}
             </dd>
+            <dt>Worker initialisation</dt>
+            <dd
+              data-testid="database-initialization-time"
+              data-milliseconds={props.initializationElapsed ?? ""}
+            >
+              {props.initializationElapsed === null
+                ? "Unknown"
+                : `${props.initializationElapsed.toFixed(1)} ms`}
+            </dd>
             <dt>Response bytes received</dt>
             <dd data-testid="database-response-bytes" data-bytes={diagnostics.bytesReceived}>
               {formatBytes(diagnostics.bytesReceived)}
@@ -88,6 +98,7 @@ export default function DatabaseStatus(props: DatabaseStatusProps) {
             <dd
               data-testid="database-operation-bytes"
               data-bytes={diagnostics.operationBytesReceived}
+              data-requests={diagnostics.operationRequests}
             >
               {formatBytes(diagnostics.operationBytesReceived)} in {diagnostics.operationRequests}{" "}
               request

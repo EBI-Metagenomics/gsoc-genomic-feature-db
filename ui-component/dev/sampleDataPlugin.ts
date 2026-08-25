@@ -7,6 +7,7 @@ import { resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 
 const sampleRoot = fileURLToPath(new URL("../../sample_data", import.meta.url));
+const benchmarkDatabaseRoute = "/__benchmark__/database.db.zip";
 const runtimePath =
   /^\/([A-Za-z0-9_.-]+)\/\1\.(?:db\.zip|fna|fna\.fai|gff\.gz|gff\.gz\.(?:tbi|csi))$/;
 
@@ -42,13 +43,18 @@ function installSampleDataMiddleware(server: {
 }) {
   server.middlewares.use(async (request, response, next) => {
     const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
-    if (!runtimePath.test(pathname)) {
+    const configuredBenchmarkPath = process.env.BENCHMARK_DATABASE_PATH;
+    const isBenchmarkDatabase =
+      pathname === benchmarkDatabaseRoute && Boolean(configuredBenchmarkPath);
+    if (!runtimePath.test(pathname) && !isBenchmarkDatabase) {
       next();
       return;
     }
 
-    const filePath = resolve(sampleRoot, `.${decodeURIComponent(pathname)}`);
-    if (!filePath.startsWith(`${resolve(sampleRoot)}${sep}`)) {
+    const filePath = isBenchmarkDatabase
+      ? resolve(configuredBenchmarkPath as string)
+      : resolve(sampleRoot, `.${decodeURIComponent(pathname)}`);
+    if (!isBenchmarkDatabase && !filePath.startsWith(`${resolve(sampleRoot)}${sep}`)) {
       next();
       return;
     }

@@ -275,6 +275,16 @@ The production data boundary, recommended EBI publication flow, range/CORS
 contract, and remaining EBI endpoint decisions are documented in
 [Production data integration](docs/production-data-integration.md).
 
+The bundled demo and its browser-testing workflow are described in
+[the User Guide](docs/USAGE.md). For a fresh clone, use `npm ci` so the frontend
+dependencies match the committed lockfile, then install the Playwright browsers
+before running E2E tests:
+
+```powershell
+cd ui-component
+npx playwright install chromium firefox
+```
+
 ### 3. Run Python Tests
 
 ```bash
